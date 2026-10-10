@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "csr2-cdn"
+version = "0.5.0"
+description = "Client for the CSR2 game and HUB CDNs: assets, databases, metadata, snapshots and HUB resources"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+keywords = ["csr2", "cdn", "assets", "asset-database", "reverse-engineering"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Games/Entertainment",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = ["requests>=2.25"]
+
+[project.optional-dependencies]
+stores = ["google-play-scraper>=1.2"]
+images = ["UnityPy>=1.20"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+csr2cdn = "csr2cdn.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Nitro4CSR/csr2-cdn"
+Issues = "https://github.com/Nitro4CSR/csr2-cdn/issues"
+
+[tool.setuptools.packages.find]
+include = ["csr2cdn*"]
+
+[tool.setuptools.package-data]
+csr2cdn = ["py.typed"]
