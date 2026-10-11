@@ -104,7 +104,7 @@ class HubCDN:
             raise ValueError("base_url must be an HTTP(S) root URL without query or fragment")
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self.headers = {"User-Agent": "csr2-cdn/0.5.0", **(headers or {})}
+        self.headers = {"User-Agent": "csr2-cdn/0.5.1", **(headers or {})}
         self._session = session
         self._owns_session = session is None
         self._retries = retries

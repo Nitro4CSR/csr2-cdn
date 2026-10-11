@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1
+
+- Make `version_ttl=0` (and negative values) always bypass the branch version
+  cache, including on clocks with coarse precision or a backward adjustment.
+- Expire positive cache lifetimes at their exact boundary.
+- Require Windows and Linux tests on Python 3.9 and 3.13 before PyPI publishing.
+
 ## 0.5.0
 
 - Add `HubCDN` for `https://cdn.csr2hub.space`, independently of the game CDN.

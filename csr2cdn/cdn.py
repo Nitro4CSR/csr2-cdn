@@ -125,6 +125,8 @@ class CDN:
             costs nothing. ``.version`` lookups are cached for *version_ttl*
             seconds, which also makes repeated probing cheap.
         :param retries: transient failures retried per request, with backoff.
+        :param version_ttl: lifetime of branch version lookups in seconds;
+            zero or a negative value disables reuse of those cached lookups.
         """
         self.zid = str(zid) if zid is not None else None
         self.base_url = base_url.rstrip("/")
@@ -192,7 +194,7 @@ class CDN:
         path = self._cache_path(kind, name)
         if not path or not os.path.exists(path):
             return None
-        if ttl is not None and (time.time() - os.path.getmtime(path)) > ttl:
+        if ttl is not None and (ttl <= 0 or (time.time() - os.path.getmtime(path)) >= ttl):
             return None
         try:
             with open(path, "r", encoding="utf-8") as handle:

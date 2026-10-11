@@ -27,7 +27,7 @@ page instead. The first successful upload creates the PyPI project.
 2. Push the changes to GitHub and wait for the Tests workflow to pass.
 3. Create and publish a GitHub release tagged `v<version>` from the tested commit
    (for example, `v0.5.0`).
-4. The Publish to PyPI workflow tests Python 3.9 and 3.13, checks the tag/version,
+4. The Publish to PyPI workflow tests Python 3.9 and 3.13 on Windows and Linux, checks the tag/version,
    builds and validates the wheel/source archive, and publishes through the
    `pypi` environment. Only the publishing job receives OIDC permission.
 5. Verify the new version at [PyPI](https://pypi.org/project/csr2-cdn/).

@@ -74,9 +74,22 @@ def test_version_lookups_are_cached_for_a_while(tmp_path):
     assert len(cdn.session.requested) == 2
 
 
-def test_expired_version_cache_is_refetched(tmp_path):
-    cdn = _cdn(_routes(), cache_dir=tmp_path, version_ttl=0)
+@pytest.mark.parametrize("ttl", [0, -1])
+@pytest.mark.parametrize("age", [0, -1])
+def test_expired_version_cache_is_refetched(tmp_path, monkeypatch, ttl, age):
+    cdn = _cdn(_routes(), cache_dir=tmp_path, version_ttl=ttl)
     cdn.database_version()
+    path = next(tmp_path.rglob("*.json"))
+    monkeypatch.setattr("csr2cdn.cdn.time.time", lambda: path.stat().st_mtime + age)
+    cdn.database_version()
+    assert len(cdn.session.requested) == 2
+
+
+def test_version_cache_expires_at_ttl_boundary(tmp_path, monkeypatch):
+    cdn = _cdn(_routes(), cache_dir=tmp_path, version_ttl=60)
+    cdn.database_version()
+    path = next(tmp_path.rglob("*.json"))
+    monkeypatch.setattr("csr2cdn.cdn.time.time", lambda: path.stat().st_mtime + 60)
     cdn.database_version()
     assert len(cdn.session.requested) == 2
 
