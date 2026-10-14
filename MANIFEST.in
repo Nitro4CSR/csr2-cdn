@@ -1,2 +1,3 @@
 include CHANGELOG.md
 include PUBLISHING.md
+include docs/official-snapshots.md

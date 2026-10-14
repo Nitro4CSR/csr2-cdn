@@ -759,6 +759,20 @@ class CDN:
         os.replace(temporary, path)
 
     # -- metadata ---------------------------------------------------------
+    def get_snapshots(self, zid: Optional[str] = None,
+                      product_version: Optional[str] = None, *, staging: bool = False):
+        """Fetch CDNSnapshots and return a SnapshotCDN sharing this session.
+
+        Each call refreshes the catalogue. Keep the returned client to reuse
+        it; no asset database or branch lookup is needed with product_version.
+        """
+        from csr2cdn.snapshots import SnapshotCDN
+
+        return SnapshotCDN.from_metadata(
+            self._require_zid(zid), product_version or self.product_version,
+            client=self.metadata, staging=staging, session=self.session, timeout=self.timeout,
+        )
+
     def get_metadata(
         self,
         *names: str,

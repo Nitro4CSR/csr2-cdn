@@ -29,6 +29,7 @@ from csr2cdn.database import DEFAULT_QUALITY, AssetDatabase
 from csr2cdn.errors import Csr2CdnError
 from csr2cdn.hub import DEFAULT_HUB_BASE_URL, HUB_CATEGORIES, HubCDN
 from csr2cdn.metadata import DEFAULT_METADATA_URL
+from csr2cdn.snapshots import SNAPSHOT_KINDS, SnapshotCDN
 
 
 def _database_from_args(cdn: CDN, args: argparse.Namespace) -> AssetDatabase:
@@ -69,6 +70,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--cache-dir", help="cache downloaded databases and version lookups here")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    snapshots = sub.add_parser("snapshots", help="list official snapshot cars and availability")
+    snapshot = sub.add_parser("snapshot", help="download an official car PNG or print its URL")
+    for command in (snapshots, snapshot):
+        command.add_argument("--manifest", help="read CDNSnapshots.meta instead of fetching metadata")
+        command.add_argument("--staging", action="store_true", help="use the staging endpoint")
+    snapshots.add_argument("--search", default="", help="filter CRDB names (case insensitive)")
+    snapshot.add_argument("crdb")
+    snapshot.add_argument("--kind", choices=SNAPSHOT_KINDS, default="DEFAULT")
+    snapshot.add_argument("--reversed", action="store_true", help="DEFAULT_REVERSED (DEFAULT only)")
+    snapshot.add_argument("--strict", action="store_true", help="require a listed snapshot")
+    snapshot.add_argument("--output", "-o", help="output PNG filename; otherwise print URL")
 
     hub = sub.add_parser("hub", help="access every CSR2 HUB CDN resource")
     hub.add_argument("--hub-base-url", default=DEFAULT_HUB_BASE_URL)
@@ -247,6 +260,27 @@ def _dispatch_hub(args: argparse.Namespace, hub: HubCDN) -> int:
 
 
 def _dispatch(args: argparse.Namespace, cdn: CDN) -> int:
+    if args.command in ("snapshot", "snapshots"):
+        try:
+            snapshots = (
+                SnapshotCDN.from_file(args.manifest, staging=args.staging,
+                                      session=cdn.session, timeout=args.timeout)
+                if args.manifest else cdn.get_snapshots(staging=args.staging)
+            )
+            with snapshots:
+                if args.command == "snapshots":
+                    print(json.dumps({car: flags for car, flags in snapshots.cars.items()
+                                      if args.search.lower() in car.lower()}, indent=2))
+                elif args.output:
+                    print(snapshots.download_snapshot_to(
+                        args.crdb, args.output, args.kind, reversed=args.reversed, strict=args.strict))
+                else:
+                    print(snapshots.snapshot_url(
+                        args.crdb, args.kind, reversed=args.reversed, strict=args.strict))
+            return 0
+        except (ValueError, OSError) as exc:
+            raise Csr2CdnError(str(exc)) from exc
+
     if args.command == "branch":
         if args.raw:
             names = cdn.branch_names()

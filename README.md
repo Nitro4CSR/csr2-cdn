@@ -4,7 +4,8 @@ A Python client for the CSR2 asset CDN and its metadata service: resolve the
 current asset database branch, download asset databases, address every asset by
 name, fetch asset bundles, and pull metadata blocks. Also access the complete
 CSR2 HUB CDN through `HubCDN`: all resource folders and root files, not just
-snapshots.
+snapshots. `SnapshotCDN` accesses the official car PNG CDN using the
+`CDNSnapshots` metadata catalogue.
 
 Not affiliated with, endorsed by or connected to Zynga, NaturalMotion or any of
 their subsidiaries. Game metadata requests need your own `zid`; HUB does not.
@@ -14,6 +15,77 @@ pip install csr2-cdn            # requests only
 pip install csr2-cdn[stores]    # adds google-play-scraper for the Play lookup
 pip install csr2-cdn[images]    # adds UnityPy for HUB bundle image extraction
 ```
+
+## Official car snapshots (0.6.0)
+
+```python
+from csr2cdn import CDN
+
+with CDN(zid="YOUR_PLAYER_ID", product_version="6.8.0") as cdn:
+    snapshots = cdn.get_snapshots()  # fetch CDNSnapshots through the metadata service
+    print(snapshots.cars["Apollo_S_2008"])
+    # {'GACHA': True, 'PRIZE': True, 'DEFAULT': True, 'DEFAULT_REVERSED': True}
+
+    snapshots.download_snapshot_to("Apollo_S_2008", "apollo.png", "GACHA")
+    snapshots.download_snapshot_to(
+        "Apollo_S_2008", "apollo-reversed.png", "DEFAULT", reversed=True
+    )
+```
+
+The public kinds are `GACHA`, `PRIZE`, and `DEFAULT`. `reversed=True` selects
+the separate `DEFAULT_REVERSED` file; it is only valid for `DEFAULT`.
+Availability varies by car. `available(car, kind, reversed=False)` checks the
+manifest, while `variants(...)` returns its exact filenames in selection order.
+`snapshot_url(...)` returns the selected URL and `download_snapshot(...)`
+returns PNG bytes. CRDB names are case-sensitive and need no asset database.
+
+No CRDB list or snapshot manifest is bundled. Car names, flags, exact paths and
+endpoints are derived from the manifest supplied or fetched at runtime.
+
+Unlisted names are allowed: the client infers a filename from the most common
+selected template for that mode in the current manifest (falling back to a
+conventional stock filename only if the manifest has no template)
+and the server may return an error. Pass `strict=True` to require a listed
+snapshot. A listed file can also disappear from the server; `SnapshotError`
+preserves its `status_code` and `path`. The client never substitutes another
+snapshot kind or flips an image locally.
+
+```python
+from csr2cdn import SnapshotCDN, metadata_block_ids
+
+# An already downloaded manifest needs no player ID or network lookup.
+with SnapshotCDN.from_file("CDNSnapshots.meta") as snapshots:
+    print(snapshots.snapshot_url("Apollo_S_2008", "PRIZE"))
+
+# Or fetch directly without the general CDN wrapper:
+with SnapshotCDN.from_metadata("YOUR_PLAYER_ID", "6.8.0") as snapshots:
+    print(snapshots.available("Abarth_500_2014", "PRIZE"))
+
+block_ids = metadata_block_ids()  # bundled list of 277 IDs, including CDNSnapshots
+# metadata_block_ids("block_ids.json") reads an updated user-supplied list.
+```
+
+Call `snapshots.refresh()` to reload its original metadata/file source and
+replace the catalogue and endpoints together. A failed refresh preserves the
+previous catalogue. For a directly constructed client, use
+`snapshots.refresh(new_manifest)`. Refreshing does not happen on every image
+request; callers control when to fetch updates.
+
+URLs come from `BaseUrlProd` in the manifest; `staging=True` selects
+`BaseUrlStaging`. Re-fetch with `cdn.get_snapshots()` to refresh availability,
+or use `MetadataCache.sync(["CDNSnapshots"])` and reload the saved `.meta` file.
+Block IDs are a discovery seed; the metadata server may not serve every block
+for every player/version. Fetching metadata needs your own player ID; the PNG
+GET requests do not add one.
+
+```bash
+csr2cdn --zid YOUR_PLAYER_ID --product-version 6.8.0 snapshots --search Apollo
+csr2cdn --zid YOUR_PLAYER_ID --product-version 6.8.0 snapshot Apollo_S_2008 --kind GACHA -o apollo.png
+csr2cdn snapshot Apollo_S_2008 --manifest CDNSnapshots.meta --reversed -o reversed.png
+```
+
+See [the APK findings and selection rules](docs/official-snapshots.md) for how
+the killswitch, manifest and duplicate-looking configuration variants relate.
 
 ## CSR2 HUB CDN
 

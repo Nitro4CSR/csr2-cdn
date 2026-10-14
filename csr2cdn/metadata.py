@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from pathlib import Path
 import time
 import urllib.parse
 from typing import Any, Dict, Iterable, Iterator, List, Mapping, NamedTuple, Optional, Sequence
@@ -30,6 +31,20 @@ DEFAULT_USER_AGENT = "Dalvik/2.1.0 (Linux; U; Android 13; SM-G991B Build/TP1A.22
 
 #: The block holding ``ExplicitDataBranchName`` and ``PreemptiveDownloadDataBranchName``.
 KILLSWITCHES_BLOCK = "FeatureKillswitches"
+
+
+def metadata_block_ids(path=None) -> List[str]:
+    """Read block IDs from a JSON list, or the bundled 2026-10-14 catalogue.
+
+    This is a discovery seed, not a guarantee that every block is available
+    for every player/version. New IDs can still be passed directly to get().
+    """
+    source = Path(path) if path is not None else Path(__file__).with_name("block_ids.json")
+    with source.open(encoding="utf-8-sig") as handle:
+        names = json.load(handle)
+    if not isinstance(names, list) or any(not isinstance(n, str) or not n.strip() for n in names):
+        raise ValueError("block IDs must be a JSON list of nonempty strings")
+    return list(dict.fromkeys(names))
 
 PROTOCOL_VERSION = "5"
 PRODUCT_NAME = "csr2"

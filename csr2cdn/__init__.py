@@ -70,11 +70,25 @@ from csr2cdn.metadata import (
     MetadataBlock,
     MetadataCache,
     MetadataClient,
+    metadata_block_ids,
+)
+from csr2cdn.snapshots import (
+    SNAPSHOTS_BLOCK,
+    SNAPSHOT_KINDS,
+    SnapshotCDN,
+    SnapshotError,
+    SnapshotNotFoundError,
 )
 
-__version__ = "0.5.1"
+__version__ = "0.6.0"
 
 __all__ = [
+    "SnapshotCDN",
+    "SnapshotError",
+    "SnapshotNotFoundError",
+    "SNAPSHOTS_BLOCK",
+    "SNAPSHOT_KINDS",
+    "metadata_block_ids",
     "CDN",
     "HubCDN",
     "HubError",

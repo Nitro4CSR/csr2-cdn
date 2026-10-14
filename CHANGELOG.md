@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0
+
+- Add `SnapshotCDN` and `CDN.get_snapshots()` for the official PNG endpoint
+  discovered through the `CDNSnapshots` metadata block.
+- Index CRDB names with GACHA, PRIZE, DEFAULT and DEFAULT_REVERSED availability;
+  select exact listed filenames and preserve all configuration variants.
+- Support `reversed=True` for DEFAULT, best-effort unlisted car IDs, optional
+  strict lookups, raw PNG downloads, and atomic saves.
+- Add `snapshot` and `snapshots` commands, including offline manifest input.
+- Refresh catalogues and endpoints from their original metadata/file source; derive
+  best-effort paths for unlisted cars from current manifest templates. No CRDB
+  catalogue or per-car exceptions are bundled.
+- Bundle the updated 277 metadata block IDs and expose `metadata_block_ids()`.
+
 ## 0.5.1
 
 - Make `version_ttl=0` (and negative values) always bypass the branch version
