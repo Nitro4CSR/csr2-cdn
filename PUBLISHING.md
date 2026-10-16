@@ -1,43 +1,29 @@
 # Publishing csr2-cdn
 
-The project uses GitHub Actions and PyPI Trusted Publishing. No PyPI API token
-needs to be stored in GitHub.
+Publication uses GitHub Actions and the existing PyPI Trusted Publisher for
+`Nitro4CSR/csr2-cdn`, workflow `publish.yml`, environment `pypi`.
 
-## One-time setup
+## Current release hold
 
-While signed in to the PyPI account that will own this project, open
-[account publishing](https://pypi.org/manage/account/publishing/) and add a
-pending GitHub publisher:
+The 0.7.0 preparation branch disables the publish job with `if: ${{ false }}`.
+Branch pushes and pull requests run tests only. No release may be published
+until the owner explicitly approves the final commit, distributions and notes.
+This branch-local hold does not change the older workflow on `main` until merged;
+do not dispatch that older workflow or publish a release during preparation.
 
-| Field | Value |
-| --- | --- |
-| PyPI project name | `csr2-cdn` |
-| Owner | `Nitro4CSR` |
-| Repository name | `csr2-cdn` |
-| Workflow filename | `publish.yml` |
-| Environment name | `pypi` |
+## After explicit owner approval
 
-Once the project exists, publisher settings are under the project's Publishing
-page instead. The first successful upload creates the PyPI project.
+1. Confirm the reviewed commit has all 15 matrix jobs and the package job green.
+2. Enable the publishing job in a reviewed follow-up change; rerun CI.
+3. Confirm both package versions match, inspect built distributions and hashes,
+   and review `docs/0.7.0-release-notes.md`.
+4. Merge the approved release branch and publish the matching `v0.7.0` GitHub
+   release on the agreed date. This triggers the publishing workflow.
+5. The workflow checks the tag/version, tests the matrix, builds and validates
+   distributions, then publishes through the `pypi` environment.
+6. Verify the PyPI version and installation from PyPI.
 
-## Releases
-
-1. Update both versions in `pyproject.toml` and `csr2cdn/__init__.py`, then update
-   `CHANGELOG.md`.
-2. Push the changes to GitHub and wait for the Tests workflow to pass.
-3. Create and publish a GitHub release tagged `v<version>` from the tested commit
-   (for example, `v0.5.0`).
-4. The Publish to PyPI workflow tests Python 3.9 and 3.13 on Windows and Linux, checks the tag/version,
-   builds and validates the wheel/source archive, and publishes through the
-   `pypi` environment. Only the publishing job receives OIDC permission.
-5. Verify the new version at [PyPI](https://pypi.org/project/csr2-cdn/).
-
-If publisher setup was incomplete on the first attempt, rerun the failed
-publishing job after completing setup. The workflow also has a manual Run
-workflow action accepting an existing release tag. PyPI versions cannot be
-overwritten: publish a new version when changing an already uploaded package.
-
-Only tracked source is built. The local `dist/`, virtual environment and
-verification downloads are ignored by Git.
-
-See [PyPI's official Trusted Publishing documentation](https://docs.pypi.org/trusted-publishers/).
+The manual publishing workflow accepts an existing tag and also constitutes
+publication; do not dispatch it before approval. PyPI versions cannot be replaced.
+Build outputs, virtual environments and private validation reports are excluded
+from Git. Never add account/session data or raw live roster responses.

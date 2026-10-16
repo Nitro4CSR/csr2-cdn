@@ -91,7 +91,7 @@ from csr2cdn.snapshots import (
     SnapshotNotFoundError,
 )
 
-__version__ = "0.7.0.dev34"
+__version__ = "0.7.0"
 
 __all__ = [
     "CSR2Services", "ServiceNetworkDisabled", "ServiceHTTPError",

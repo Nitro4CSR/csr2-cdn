@@ -4,3 +4,5 @@ recursive-include docs *.md *.csv
 recursive-include tests/fixtures *.meta
 
 include VALIDATION_STATUS.md
+
+recursive-include examples *.py

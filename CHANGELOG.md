@@ -1,3 +1,15 @@
+## 0.7.0 (release candidate; unpublished)
+
+- Add read-only crew discovery, rosters, roles, player levels and seasonal Crew RP.
+- Add matched GCC standings and guarded member-total comparisons; supported scope is top ten plus five crews above/below the authenticated crew.
+- Resolve Showdown names from current metadata and native schedule inputs.
+- Add native-backed Prestige global and crew-filtered views with exact six-decimal race times.
+- Add opt-in diagnostics, coverage checks and synthetic season-rollover validation.
+- Validate Windows, Ubuntu and macOS on Python 3.9–3.13, including wheel/source installation checks.
+- Preserve existing CDN, HUB and dynamic snapshot APIs. Full GCC pagination and deeper optional data are deferred to 0.7.1.
+
+The entries below are historical development notes; their blockers describe the respective build, not current release status. See VALIDATION_STATUS.md.
+
 ## 0.7.0.dev34 (unreleased) â€” Prestige leaderboard UI window and crew-filtered read
 
 - Add an explicit top-20 / +/-10 global Prestige window candidate using the existing native serializer; no claim that this exact range has passed a live check.
