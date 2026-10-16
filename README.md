@@ -1,4 +1,466 @@
+## Prestige leaderboard views (Dev34, unreleased)
+
+Dev34 adds an opt-in **global** Prestige range matching the operator-observed
+`top 20 + 10 before/after` layout and a **separate, APK-traced event crew**
+leaderboard route `leaderboard/{board}/scores/crewmembers`. The crew-filtered
+read requests results from the server rather than locally filtering the
+bounded global leaderboard. The crew route uses the native range mode
+`top=10, before=30, after=30`; the global top20/±10 request uses a native-
+admissible explicit range but has not been shown to match the exact game UI
+call site. Both new response shapes are pending live confirmation.
+
+```bash
+python -m csr2cdn.prestige_release_validation --ui-window --crew-filtered --print-entries
+```
+
+That command is a zero-network dry run. The next authorized online check is
+described in [Dev34 Prestige investigation](docs/0.7.0-dev34-prestige-views.md).
+The current package release remains blocked by new view verification and CI.
+
+## Prestige Cup timing (Dev33, unreleased)
+
+The Prestige leaderboard's integer `FastestHalfMileTime` score is a time in
+**microseconds**. To display it as in the game, use
+`format_prestige_time(score)`: `7102993` becomes `"7.102993"` seconds.
+This operation is exact and always produces six fractional digits. The raw
+integer is preserved for sorting and tie comparisons; **do not apply this
+conversion to GCC Crew RP scores**.
+
+```python
+from csr2cdn.prestige_time import format_prestige_time
+assert format_prestige_time(7102993) == "7.102993"
+```
+
+To compare a later authorized read against an operator-supplied UI time, pass
+`--ui-time 7.102993` to `python -m csr2cdn.prestige_release_validation`
+with the existing `--execute` and confirmed board/season inputs. The game UI
+shows top 20 globally, ±10 positions around the player, and separate crew
+standings, but those three exact network read contracts are **not** verified;
+the package retains its previously verified bounded leaderboard read. See
+[Dev33 Prestige notes](docs/0.7.0-dev33-prestige-timing.md).
+
+## Dev31 — season rollover handling without waiting for the server (unreleased)
+
+Dev31 adds an **offline-only rollover rehearsal** and typed `GCCSeasonTiming` /
+`CrewSeasonTransition` comparison for the existing Crew RP snapshots. It expects
+member `cc_contrib` and matched GCC `score` to reset to zero at each new
+14-day championship, **but never resets server values locally or fabricates a
+season ID**. It rejects a roster/GCC read pair crossing an inferred season
+boundary, allows a one-hour UTC difference across DST for 14 local calendar
+days, and compares the own-crew `crew_rp` / garage figures separately and only
+prints those statistics with opt-in. The native `end_time` / `time_left` timing
+correlation is strong but remains a candidate schedule, not a verified reset.
+
+Zero-network test (synthetic examples only):
+
+```console
+python -m csr2cdn.crew_season_validation --simulate
+```
+
+See [Dev32 release gates](docs/0.7.0-dev32-release-gates.md) and [Dev31 season lifecycle notes](docs/0.7.0-dev31-season-lifecycle.md).
+
 # csr2-cdn
+
+## Dev30 — deeper audit of the same crew responses (unreleased)
+
+Dev30 updates Dev29's read-only inventory to recognize the *observed* snake_case crew statistics, report one-level `tournament`/`crew_logo`/member car-configuration field names/types, and inspect the GCC `end_time`/`time_left`/`cardinality`/`bucket`/`tier` envelope. `--show-stat-candidates` optionally prints three **separate** RP quantities and cautiously gated differences; `--show-gcc-metadata` separately opts into bounded timing / grouping values and an explicitly hypothetical Unix-time interpretation. Their season meaning is unverified. The same three authenticated read routes are unchanged, and the CLI makes zero network calls without `--execute`. See [Dev30 notes](docs/0.7.0-dev30-existing-endpoints.md).
+
+## Dev29 — inventory of existing crew endpoint fields (unreleased)
+
+Before any further live read, Dev29 adds a redacted inventory of the three **already established** own-crew, roster and GCC progress responses. `python -m csr2cdn.crew_endpoint_inventory` is a zero-network dry run; the later `--execute` mode prompts for PlayerID and makes only those three read-only requests. It reports field names, value types, coverage and nested GCC logo structure without printing IDs, secrets, names or values. `--show-stat-candidates` separately opts into selected numeric own-crew counters and aggregate member statistics; their meanings/units remain unverified. See [Dev29 documentation](docs/0.7.0-dev29-endpoint-inventory.md).
+
+## Crew RP (Dev28; tested member/source mapping)
+
+Crew member `cc_contrib` now maps to `CrewMember.season_crew_rp` (independently compared against game UI during the Manthey 911 Prestige Cup season). The GCC current-progress `score` returned the **exact sum** of 29 contribution values in the 2026-10-16 Dev27 authorized read, and `rank` was server-returned. These are **read-only**, non-atomic values; the server has not yet provided an independently validated season ID or rollover proof.
+
+Use `CSR2Services.get_crew_rp_snapshot()` only with explicit `allow_network=True`. It returns a typed `CrewRPSnapshot` with an exact crew-ID join, adaptive member count (from `memberCount` when available), freshness/coverage checks and an identifier-free `public_summary()`; `comparable` and `delta` are suppressed on incomplete, stale or poorly timed reads. A changed operator season marker or declining score flags a *possible* reset or correction, not verified season rollover. See [Dev28 documentation](docs/0.7.0-dev28-crew-rp.md) for code and CLI examples. Overall 0.7.0 release remains blocked by separate checks.
+
+## Dev24 experimental GCC crew leaderboard read (unreleased)
+
+After screenshot comparison validated native member `cc_contrib` in the tested crew, `CrewMember.season_crew_rp` exposes that field without conflating it with lifetime RP or fallback `score`. The game APK also contains the default GCC prefix and a native category-3 `viewcrew` progress request, reconstructed **experimentally** as `leaderboard/crew-champs-v2/viewcrew` (`top=10, after=5, before=5, offset=0`). Its runtime prefix, season identity, endpoint success, and crew rank/total semantics **have not yet been live confirmed**.
+
+To explicitly try one read-only GCC **progress** request (plus own-crew identification), in an interactive terminal:
+
+```console
+python -m csr2cdn.crew_rp_verification --execute --print-member-values --gcc-live --gcc-only --reference-total 37448821 --reference-rank 257 --season-note "Manthey 911 Prestige Cup"
+```
+
+This prints any returned crew names, ranks and `cc_rp` candidates. It does not print private player IDs, auth material, or raw responses; an unfamiliar response triggers a bounded schema census. Without `--gcc-live` this additional network call is disabled; without `--execute` there are **zero** network calls. **Release blocked.** See [dev24 notes](docs/0.7.0-dev24-gcc-live-probe.md).
+
+### Dev23 — printable read-only Crew RP comparison (unreleased)
+
+The live dev22 `crews/viewMembers` probe found numeric `cc_contrib` candidates
+for 29/29 identified crew members. To compare actual values against the
+**current Manthey 911 Prestige Cup season** screenshots, the opt-in dev23
+investigator prints *every member nickname, player level, `cc_contrib`,
+`player_rp`, and all-time RP when available*. It also prints the sum of
+member contribution candidates and its delta versus the crew leaderboard RP
+reported by the operator. The reference (37,448,821 RP; crew rank 257) is a
+**time-sensitive screenshot reference**, not an authenticated season marker.
+
+From an interactive terminal, after installing the source project:
+
+```console
+python -m csr2cdn.crew_rp_verification --execute --print-member-values --expected-members 29 --reference-total 37448821 --reference-rank 257 --season-note "Manthey 911 Prestige Cup"
+```
+
+Add `--format json` for human-inspectable structured output. The account's
+PlayerID is entered in a hidden prompt and is never printed. **Member
+nicknames and RP values intentionally print to the terminal**: do not share
+raw output publicly without redaction. Do not pass secrets on the command
+line. The command does not write files. Without `--execute`, it makes **zero
+network requests**. With it, the only live reads are the existing
+`crews/checkUserCrew` and `crews/viewMembers` allowlisted paths. The script
+prints any exact `cc_rp`, `score`, `rp`, or `crew_rank` scalar that happens to
+be present in the own-crew membership response; no value is fabricated.
+
+A separate **offline** inspection of an already obtained GCC JSON response
+prints its entire decoded crew list, `crew_rank`, `cc_rp`, all-time `rp`, and
+any own-crew comparison when combined with the live member read:
+
+```console
+python -m csr2cdn.crew_rp_verification --gcc-response-json local-gcc-response.json --format table
+```
+
+This **does not download GCC results**. The GCC `viewcrew` signed URL,
+season selector, and pagination remain unverified in the APK trace and are
+**not guessed**. No release gate is unblocked by a coincidental total or
+rank match; a 14-day active-season check and member UI equivalence are
+still required. See [the dev23 test note](docs/0.7.0-dev23-crew-rp-value-comparison.md).
+
+
+### Experimental 14-day Crew RP wire test — 0.7.0.dev22 (unreleased)
+
+The CSR2 6.8.0 native `PlayerCrewMember.FromJSONDict` decoder populates the
+**current-season-shaped member field** `RP_season` from `score` and subsequently
+from `cc_contrib`. The **native source mapping is established**, but live
+`crews/viewMembers` key presence, active-season scope, and displayed-RP
+accuracy are **not yet verified**.
+
+A separate, explicitly **unverified** `CrewMember.season_crew_rp_candidate`
+field (and `.season_crew_rp_source`) exposes the parser-supported
+`cc_contrib` / fallback `score` values. It never uses lifetime `RP` / `rp`
+or profile `player_rp`; existing `crew_rp` compatibility behavior is unchanged.
+A present-but-invalid `cc_contrib` is not silently replaced by `score`.
+Zero is a valid contribution candidate.
+
+For a privacy-safe **live first pass**, run in an interactive terminal after
+installing this source project (`python -m pip install -e .`):
+
+```console
+python -m csr2cdn.live_validation --execute --crew-only --crew-season-probe --crew-rp-schema
+```
+
+The command prompts privately for **your own** PlayerID, performs only the
+existing authorized `crews/checkUserCrew` and `crews/viewMembers` reads,
+and outputs only numeric *counts* and authored status flags: native key
+presence / parseability, `cc_contrib` precedence, fallback `score` coverage,
+member identity coverage and zero-contributor count. It never prints names,
+IDs, RP values, response documents or credentials. Omit `--execute` for a
+no-network dry run. You can also specify your own crew with
+`--crew-uid OWN_CREW_UID`.
+
+**Interpretation:** `complete_identity_and_candidate_coverage: true` means
+only that each returned roster record has a distinct recognized identifier
+and a numeric native contribution candidate. It does **not** validate the
+active 14-day season or UI equivalence. Compare values against the in-game
+crew-member RP privately, including the local player's profile overwrite,
+and check the actual active-season ID/bounds and season rollover before
+unblocking Crew RP.
+
+`GCCCrewStanding` and `GCCCrewStandings` also decode supplied **offline** GCC
+results using `cc_rp` for the candidate **crew season total**, `rp` for
+all-time crew RP, and `crew_rank` for rank. Example for an authorized local
+fixture: `CSR2Services.decode_gcc_crew_standings(response_json)`.
+The complete signed GCC `viewcrew` route and season selection are still
+unverified, so no new live GCC request or speculative leaderboard alias has
+been added. Prestige behavior is unchanged. **Crew RP remains blocked.**
+
+See [dev22 candidate-read implementation](docs/0.7.0-dev22-crew-season-rp-probe.md).
+
+### Player-profile RP and crew-season RP — 0.7.0.dev21
+
+Native tracing establishes `UserManager.FillNonSecureBlobDict` writes the
+`player_rp` key using `PlayerProfile.get_RP`. Dev20 live data contained this
+field for all 29 members. Dev21 exposes it separately as `member.player_rp`
+and reports only `player_profile_rp_populated` in the crew-only validation.
+This profile statistic is **not** a verified current-season Crew RP contribution;
+`member.crew_rp` remains `None` when its season-specific source is missing.
+
+The crew hangout instead displays `PlayerCrewMember.RP_season`, while its
+`FromJSONDict` method maps uppercase `RP` into `RP_allTime`. The client also
+updates the **local player's** GCC contribution from local profile state in
+`PlayerCrew.set_Members`; this is not evidence for a 29-member season-RP list.
+The next step is tracing a read-only seasonal contribution source rather than
+relabelling the profile stat.
+
+Dev21 also restores all *synthetic* Showdown `.meta` files into the full-project
+ZIP; they are necessary for the packaged native-preview regression, and contain
+no production game data.
+
+### Native crew RP / role preview (0.7.0.dev20)
+
+The dev17 live roster read succeeded (29/29 nicknames and levels) but
+returned 0/29 typed RP values. Dev18 corrects the native dictionary's
+**uppercase `RP`** wire key, preserves the source of that value, and adds
+canonical crew role recognition. The native client distinguishes all-time
+RP from the seasonal RP shown in the crew hangout; a populated `RP`
+**must be privately compared with the game** before calling it seasonal.
+See [dev18 RP/role findings](docs/0.7.0-dev19-crew-rp-role.md).
+
+```powershell
+python -m csr2cdn.live_validation --execute --crew-only
+```
+
+The command reports only coverage counts, not member records, identifiers,
+RP numbers, or roles. To inspect member values locally, use
+`csr2cdn services --execute crew`; do not publish detailed roster output.
+
+The dev16 **integrated Prestige Cup live test succeeded**, returning 21
+standings entries for explicit Season 277 and the extracted Porsche car.
+Accurate game rank/score, pagination, cached season, identity mode and CI still
+need confirmation. Dev16 can now decode the special-ladder **binary** Prestige Cup template and
+reconstruct a standard timed leaderboard from real metadata, rather than
+requiring a manually typed board name. To test **the active Season 277 cup**
+read-only with the extracted car record, install the `events` extra and run:
+
+```powershell
+python -m csr2cdn.live_validation --execute --skip-crew --prestige-current --prestige-season 277 --prestige-car-json .\Porsche_Manthey911GT3RSRewardRecycled_2024.json
+```
+
+The current crew-season ID and car tier remain explicit inputs for this first
+live test. Their identity must be checked against active in-game data. The
+binary template and ranking metadata are validated before a request can be
+sent. The supplied Season 277 inputs yielded a successful authorized live standings
+read, but future-season auto-resolution is not complete; see
+[dev16 native Prestige findings](docs/0.7.0-dev16-native-prestige.md).
+
+### Earlier Prestige Cup investigation (0.7.0.dev14)
+
+Dev13 retains the dev12 source-loading and native telemetry fixes. It additionally
+retains race groups with native `Silver_Prestige` telemetry and serialized `id`
+even when `EventGroupName` is missing. Previous decoders discarded those records.
+Whether that explains the current live Prestige discovery failure remains unverified. To run
+read-only live validation with your own PlayerID, install the `events` extra and
+run `python -m csr2cdn.live_validation --execute --skip-crew --prestige-current`.
+The runner reports source coverage and counts without printing player details,
+authentication material, event identifiers, scores or raw responses. An unresolved
+Prestige Cup is **not** a successful service test. The exact active production
+leaderboard has not yet been verified.
+
+
+Prestige Cup discovery now retrieves both `CupInvitationalRaceSeries` and
+modular common-event metadata. Run the read-only live preflight on your machine:
+
+```console
+python -m pip install ".[events]"
+python -m csr2cdn.live_validation --execute --skip-crew --prestige-current
+```
+
+A PlayerID-only Python interface is also available:
+
+```python
+from csr2cdn import CSR2Services
+with CSR2Services("YOUR_PLAYER_ID", allow_network=True) as api:
+    page = api.get_prestige_cup_leaderboard()
+```
+
+This requires a current Prestige event with an attached, fully derived
+leaderboard. **The real live Prestige result is not yet verified.** It is not
+correct to interpret an unresolved metadata source as an inactive event.
+See [Prestige Cup research and validation](docs/0.7.0-dev10-prestige.md).
+
+## Experimental 0.7.0 game-services API (unreleased developer preview)
+
+A separate, offline-first **read-only** `CSR2Services` API now covers crew
+membership/current cars, Showdown standings, legacy Showdown Leagues standings and
+preview/score lookups, and a provisional Prestige Cup standings interface.
+It has typed crew/leaderboard models, explicit leaderboard ranges, a refreshable
+caller-provided event mapping, a game-metadata Showdown schedule preflight,
+and an opt-in CLI. **An authorized CSR2 6.8.0 live test succeeded for
+own-crew membership and `SMP_SHOWDOWN_277_W2` standings (21 entries).**
+Crew roster decoding, full score/pagination semantics, and Prestige Cup remain
+unverified. No final `0.7.0` release has been made. The save-game downloader remains separate and private.
+
+```python
+from csr2cdn import CSR2Services, EventCatalog, StandingRange
+
+catalog = EventCatalog.from_json_file("current-event-mapping.json")
+with CSR2Services("MY_PLAYER_ID", events=catalog) as api:
+    own_crew = api.prepare_my_crew()  # offline preview, no crewUID needed
+    showdown = api.prepare_showdown(event_id="EVENT_ID")
+    prestige = api.prepare_prestige_cup(event_id="CUP_ID")
+    leagues = api.prepare_showdown_leagues(
+        leaderboard_name="RESOLVED_BOARD", ranges=StandingRange.common()
+    )
+    # These only build contracts, with no server contact.
+```
+
+### Opt-in live read smoke test (0.7.0.dev9)
+
+Run these commands **on your own machine**, in an interactive terminal, with a
+PlayerID you control. The test asks for that ID without echoing it or adding it
+to command-line arguments. It neither stores credentials nor prints raw service
+responses, request payloads, player identifiers or auth diagnostics. No save
+download/upload and no chat functionality are included.
+
+```console
+python -m csr2cdn.live_validation             # no network, no prompt
+python -m csr2cdn.live_validation --execute --showdown-name "Championship Showdown"
+python -m csr2cdn.live_validation --execute --showdown-name "Elite Showdown"
+```
+
+The runner obtains the metadata *product version* from the existing CDN
+resolver (it may differ from APK version `6.8.0`). If known, supply it to skip
+that discovery step: `--metadata-product-version 6.8.xx`. It reports only
+counts of scheduled events and fully resolved server leaderboard names. It
+**does not** mistake a template or schedule event ID for a server leaderboard
+name. When multiple Showdowns are active, no automatic board is chosen.
+
+"Championship Showdown" selects only a uniquely active metadata record of the
+form `SMP_SHOWDOWN_<season>_W2`; "Elite Showdown" uses `_W1`. Seasons are
+selected from discovered active metadata, never inferred from today's calendar.
+The season cycle can span two weeks while each W1/W2 event has its own actual
+server-provided schedule. When the matching slot is inactive, the runner reports
+`inactive_event`; it never guesses another season or picks an unrelated
+Showdown event. Exact metadata identifiers remain supported for advanced use, but user-facing Championship/Elite aliases never fall back to an unrelated event.
+
+If more than one current Showdown has a fully resolved board, select the
+first by `--showdown-index 0` or the next by `--showdown-index 1`. The
+zero-based index sorts candidate event IDs and selects **one** request.
+If the metadata lacks resolved IDs, the runner refuses to guess.
+
+Own-crew discovery now runs automatically: the game-service read determines
+`crewUID` from the authenticated account before fetching the crew roster. No
+manual UID is needed. The first live roster read used a response shape not
+recognized by dev8. Dev9 supports additional typed member layouts and includes
+key-free structural diagnostics for any still-unrecognized response. An
+unknown response is never counted as a successful empty roster. To omit this optional check, use `--skip-crew`.
+
+For direct library use:
+
+```python
+with CSR2Services("MY_PLAYER_ID", allow_network=True) as api:
+    own_crew = api.get_my_crew()
+    if own_crew.in_crew:
+        members = api.get_crew_members()  # automatically uses own_crew.crew_uid
+```
+
+To test a known resolved leaderboard or explicitly selected crew, use flags:
+
+```console
+python -m csr2cdn.live_validation --execute --showdown-board RESOLVED_BOARD
+python -m csr2cdn.live_validation --execute --crew-uid OWN_CREW_UID
+python -m csr2cdn.live_validation --execute --prestige-board RESOLVED_BOARD
+python -m csr2cdn.live_validation --execute --leagues-board RESOLVED_LEGACY_BOARD
+```
+
+Each selected feature performs at most one logical read (the package may retry
+an HTTP 401 once). Only sanitized results such as `ok`, `unresolved_board`,
+`http_rejected`, `response_not_recognized`, and entry counts are displayed.
+The read builders remain provisional until the live outcomes have been reviewed.
+Do not provide your PlayerID, credentials, or raw game responses in issue
+reports. See [live validation instructions](docs/0.7.0-live-validation.md).
+
+### Runtime Showdown discovery (0.7.0.dev9)
+
+In CSR2 6.8.0, the client loads event metadata from asset bundles and can
+merge additional Showdown groups into the standalone `ShowdownEventsContainer`.
+The metadata-service block alone can list a historical event while omitting a
+current runtime event. **Zero active groups from that block is not evidence
+that the named Showdown is inactive.** `live_validation` now reports
+`source_coverage=runtime_asset_bundles` after successful automatic merging
+(or a sanitized runtime-source error if extraction fails). An explicitly
+supplied offline-only metadata source still reports `standalone_only`.
+
+For **offline verification of decoded runtime groups**, provide a JSON list
+whose elements are actual `RaceEventGroup` mappings obtained from an
+independently authorized source. This option does not retrieve those groups
+and never substitutes synthetic event IDs for production data:
+
+```console
+csr2cdn services --metadata-dir ./my-metadata --modular-groups-file ./runtime-groups.json showdowns
+csr2cdn services --metadata-dir ./my-metadata --modular-groups-file ./runtime-groups.json showdown --name "Championship Showdown"
+```
+
+Programmatically, use `ShowdownDiscovery.from_json_directory(...,
+modular_groups_file=...)` or `ShowdownDiscovery(source, modular_source=...)`.
+The native merge preserves standalone groups when a runtime group has the
+same `EventGroupName`; incomplete or malformed injected records fail closed.
+The client selects asset type `47` when enumerating common-event metadata
+bundles. An existing CDN asset database can be inspected offline using:
+
+```python
+from csr2cdn import AssetDatabase, modular_event_assets
+database = AssetDatabase.load("asset_database.json")
+bundles = modular_event_assets(database)
+print("event-metadata bundle candidates:", len(bundles))
+```
+
+**Dev7 introduced an automatic read-only loader for these bundles.** Install the
+optional event decoder once using `pip install 'csr2-cdn[events]'`, then use
+the existing Python call `api.get_showdown_leaderboard(showdown_name=...)` or
+the live validation runner. The package obtains the current asset database,
+selects category-47 entries, streams ASTC-quality Unity bundles with size
+limits, and uses UnityPy to extract explicit Showdown groups, schedule records
+and ranking definitions. It merges them with standalone metadata without a
+built-in event catalogue or client-specific identifiers. Dev8 corrected keyed ranking definitions and session compatibility. A later
+authorized production test validated a Showdown standings response and own-crew
+lookup. Dev9 adds strict current W1/W2 name aliases, while crew roster and
+some rank/score semantics still await verification.
+
+`--execute` is still mandatory for live-validation requests. No bundle content,
+player identifiers, or authentication material is logged or included in the
+package. Bundles without readable Unity type trees or recognizable JSON
+cannot be decoded yet: the loader reports `runtime_catalogue_unavailable`
+instead of claiming no event is running. UnityPy has not been exercised against
+a genuine CSR2 event bundle here, so compatibility is pending live validation.
+
+The current authorization code is kept internal. The live harness never
+outputs session details; a valid service session has now been observed in an
+authorized validation. See [live validation](docs/0.7.0-live-validation.md).
+
+### Offline Showdown discovery (0.7.0.dev1)
+
+Given **local** snapshots of `ShowdownEventsContainer.meta`,
+`EventSchedule.meta`, and optionally `EventLeaderboards.meta`, the package
+can inspect scheduled Showdown candidates and prepare a read contract if a
+fully resolved leaderboard name is present in those snapshots:
+
+```python
+from datetime import datetime, timezone
+from csr2cdn import CSR2Services, ShowdownDiscovery
+
+discovery = ShowdownDiscovery.from_json_directory("./my-metadata")
+with CSR2Services("MY_PLAYER_ID") as api:
+    for event in discovery.scheduled_now():
+        print(event.event_id, event.time_status, event.requestable)
+    request = api.prepare_current_showdown(discovery)  # network-free
+    print(request.route)
+```
+
+```console
+csr2cdn services --metadata-dir ./my-metadata showdowns --scheduled-now
+csr2cdn services --metadata-dir ./my-metadata showdown --current
+```
+
+Time windows alone do **not** prove in-game eligibility, server availability,
+or whether the event is segmented. `prepare_current_showdown` refuses missing
+or ambiguous board names and does not infer them from event IDs or leaderboard
+templates. The local tests use synthetic metadata; actual current metadata
+and live leaderboard responses remain to be verified at the final test phase.
+There is no chat retrieval. Showdown Leagues remains a legacy compatibility
+feature, even though the game no longer currently offers it.
+
+Try the CLI offline: `csr2cdn services crew` (previews the own-crew
+lookup; no UID needed), or
+`csr2cdn services showdown --leaderboard-name RESOLVED_BOARD`.
+See [automatic crew discovery](docs/0.7.0-crew-discovery.md),
+[validation follow-up](docs/0.7.0-validation-followup.md),
+[offline Showdown preflight](docs/0.7.0-offline-showdown-preflight.md) and
+[0.7.0-first-implementation](docs/0.7.0-first-implementation.md) for
+all Python/CLI methods, fixture decoding, dynamic mapping and release gates.
+
 
 A Python client for the CSR2 asset CDN and its metadata service: resolve the
 current asset database branch, download asset databases, address every asset by
@@ -703,3 +1165,120 @@ csr2cdn stubs db.json --output csr2_assets
   database, which is what you want in a long running process after an OTA.
 - `CDN(package_id=..., app_store_id=...)` points the whole chain at a different
   app; the defaults are CSR2's.
+
+
+### Showdown leaderboard identifier inputs (experimental 0.7.0.dev5)
+
+The resolver now tracks and validates the four input values independently:
+occurrence start, duration, ranking direction and first ordered race ID.
+Supported direct group repeats are resolved to the applicable occurrence;
+unsupported schedule-level recurrence and ambiguous definitions fail closed.
+Use `ShowdownDiscovery.list_showdowns()` and `candidate.identity_inputs.missing`
+to diagnose metadata gaps **offline**, without leaking session details.
+See [four-input resolution evidence](docs/0.7.0-four-input-resolution.md).
+Live 6.8.0 compatibility of real Showdown metadata still needs validation.
+
+### Showdown leaderboards by name (experimental 0.7.0.dev4)
+
+Only your own PlayerID and the Showdown's name are needed for the proposed
+public interface:
+
+```python
+from csr2cdn import CSR2Services
+with CSR2Services("YOUR_PLAYER_ID", allow_network=True) as api:
+    page = api.get_showdown_leaderboard(showdown_name="Championship Showdown")
+```
+
+```sh
+csr2cdn services --execute showdown --name "Championship Showdown"
+```
+
+For offline previews, supply a local metadata directory instead of `--execute`.
+Native board-ID derivation and supported schedule shapes are documented in
+[Named Showdown resolution](docs/0.7.0-named-showdown.md). Full live-server
+compatibility remains unverified, especially recurring schedule formats.
+No saved-game operations or chat retrieval are included.
+
+
+
+### Prestige Cup special-ladder source diagnostics (development)
+
+The 6.8.0 native `RaceEventDatabase.ProcessSpecialLadderRaceEventData`
+registers race groups from `SpecialLadderEvents.LadderEvents`. Development
+version 0.7.0.dev14 now checks that source separately from the invitational
+series and career/Showdown catalogues. The live preflight reports only
+`special_ladder_groups`, `special_ladder_groups_with_leaderboard` and
+`special_ladder_native_prestige_groups`, as well as successful/unavailable
+source counts. A nonzero ladder count does not imply an active Prestige Cup;
+only an authoritative event group, schedule and leaderboard may be queried.
+
+To inspect with an authorized player account locally:
+
+```console
+python -m csr2cdn.live_validation --execute --skip-crew --prestige-current
+```
+
+Live compatibility of this additional source remains **unverified**.
+
+Development note: dev16 additionally integrates the type-46 binary Prestige event template and guarded runtime board reconstruction. **Prestige leaderboard discovery has not been live-verified**. See `docs/0.7.0-dev16-native-prestige.md`.
+
+
+### Crew RP wire-shape investigation (dev19)
+
+If the crew-only report has `crew_rp_populated: 0`, the extra
+`wire_rp_diagnostics` object reports *counts only* from the actual decoded
+`crews/viewMembers` member records. The keys distinguish dictionary records
+from 10/11-field compact records, exact `RP`/`rp` and seasonal RP keys,
+other RP-labeled or nested properties, values that are null/unparseable, and
+role wire type. It **does not** return field values, arbitrary server key names,
+player IDs, names, positions, or scores. Run:
+
+```powershell
+python -m csr2cdn.live_validation --execute --crew-only
+```
+
+A populated lifetime `RP` value does not automatically equal seasonal Crew RP.
+Do not infer RP from adjacent numeric fields, crew-wide totals or unrelated
+leaderboards. If no RP-labeled fields appear in the live member records, a
+separate game-native read-only source will need to be identified and verified.
+
+### Dev20 Crew RP wire-schema investigation (optional)
+
+The dev19 live read showed 87 RP-looking names in 29 roster records, but no known
+seasonal RP values. The diagnostic's broad substring rule can catch car fields,
+so it is not evidence of Crew RP. An *opt-in* key-only schema census is available:
+
+```powershell
+python -m csr2cdn.live_validation --execute --crew-only --crew-rp-schema
+```
+
+This reports aggregate, repeated ASCII field names and family counts only.
+It does **not** emit any field values, nicknames, player IDs, or raw records.
+Sensitive-looking and rare/dynamic field names are suppressed. Unknown keys
+are never automatically mapped to seasonal RP; use the observed names to
+trace their native semantics. Do not use the result to assert RP coverage.
+
+### Dev25 experimental GCC `scores` response tracing
+
+The current-progress `viewcrew` read returned `scores` with 21 objects, not yet decoded GCC crew standing records. Use the [Dev25 GCC score-shape diagnostic](docs/0.7.0-dev25-gcc-scores-shape.md) to print known field/type counts or explicitly opt into score/position candidate values, **without claiming seasonal Crew RP or crew leaderboard rankings**.
+
+
+### 0.7.0.dev26 current GCC progress check (unreleased)
+
+The observed `leaderboard/crew-champs-v2/viewcrew` progress response contains `scores` with `crew_id`, `name`, `rank`, `score`, and `logo`. Dev26 can parse them and **match your own crew by ID**, printing score/rank as backend candidates; these are **not yet verified seasonal Crew RP** without active season and contemporaneous in-game checks. Use only with authorized read-only access:
+
+```console
+python -m csr2cdn.crew_rp_verification --execute --print-member-values --gcc-live --gcc-only --gcc-print-score-candidates --reference-total 37448821 --reference-rank 257 --season-note "Manthey 911 Prestige Cup"
+```
+
+This prints all returned crew names, ranks and scores on opt-in but not IDs or authentication data. [Research notes](docs/0.7.0-dev26-gcc-progress-decoding.md).
+
+### 0.7.0.dev27 sequential own-crew member-versus-leaderboard comparison (unreleased)
+
+The dev26 authorized live read matched one exact own-crew ID with GCC `score=38,226,478`, rank `253` on October 16, 2026. Both fields are server-returned, but `score` has **not** been proven to be current-season Crew RP. Dev27 fixes a mixed-clock Showdown test and adds an opt-in, sequential comparison between the complete roster's `cc_contrib` sum and the GCC own-crew score, without changing the known read-only routes:
+
+```console
+python -m csr2cdn.crew_rp_verification --execute --print-member-values --gcc-live --gcc-print-score-candidates --expected-members 29 --season-note "Manthey 911 Prestige Cup"
+```
+
+Do **not** use `--gcc-only` for this comparison, since it skips the roster. The output intentionally prints member names and RP counters and the requested leaderboard rows; review it before sharing. Identifiers and credentials are not printed. This compares two sequential reads, **not** one atomic snapshot, and does not establish an active-season identifier or reset schedule. See [Dev27 validation notes](docs/0.7.0-dev27-gcc-sequential-comparison.md).

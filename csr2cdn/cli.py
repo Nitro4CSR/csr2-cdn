@@ -70,6 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--cache-dir", help="cache downloaded databases and version lookups here")
     sub = parser.add_subparsers(dest="command", required=True)
+    from csr2cdn.service_cli import add_service_parser
+    add_service_parser(sub)
 
     snapshots = sub.add_parser("snapshots", help="list official snapshot cars and availability")
     snapshot = sub.add_parser("snapshot", help="download an official car PNG or print its URL")
@@ -188,6 +190,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "services":
+        from csr2cdn.service_cli import dispatch_services
+        return dispatch_services(args)
     if args.command == "hub":
         try:
             with HubCDN(base_url=args.hub_base_url, timeout=args.timeout) as hub:

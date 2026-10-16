@@ -4,18 +4,20 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        python: ['3.9', '3.13']
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.9', '3.10', '3.11', '3.12', '3.13']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -23,8 +25,13 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m pip install ".[dev]"
+      - run: python -m pip install ".[dev,events]"
       - run: python -m pytest -q
+      # Dry runs must never contact the authenticated game endpoints.
+      - run: python -m csr2cdn.prestige_release_validation
+      - run: python -m csr2cdn.prestige_release_validation --ui-window --crew-filtered
+      - run: python -m csr2cdn.crew_endpoint_inventory
+      - run: python -m csr2cdn.crew_season_validation --simulate
 
   build:
     runs-on: ubuntu-latest
@@ -38,3 +45,23 @@ jobs:
       - run: python -m pip install build twine
       - run: python -m build
       - run: python -m twine check --strict dist/*
+      - name: Verify installed wheel and source distribution
+        shell: bash
+        run: |
+          for artifact in "$GITHUB_WORKSPACE"/dist/*.whl "$GITHUB_WORKSPACE"/dist/*.tar.gz; do
+            check_dir=$(mktemp -d)
+            python -m venv "$check_dir/venv"
+            "$check_dir/venv/bin/python" -m pip install "${artifact}[dev,events]"
+            cp -R tests "$check_dir/tests"
+            (
+              cd "$check_dir"
+              "$check_dir/venv/bin/python" -m pytest -q tests
+              "$check_dir/venv/bin/python" -m csr2cdn.prestige_release_validation --ui-window --crew-filtered
+              "$check_dir/venv/bin/python" -m csr2cdn.crew_season_validation --simulate
+            )
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-candidate-distributions
+          path: dist/
+          if-no-files-found: error

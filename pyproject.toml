@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "csr2-cdn"
-version = "0.6.0"
+version = "0.7.0.dev34"
 description = "Client for the CSR2 game and HUB CDNs: assets, databases, metadata, snapshots and HUB resources"
 readme = "README.md"
 license = "MIT"
@@ -28,6 +28,7 @@ dependencies = ["requests>=2.25"]
 [project.optional-dependencies]
 stores = ["google-play-scraper>=1.2"]
 images = ["UnityPy>=1.20"]
+events = ["UnityPy>=1.20", "lz4>=4.0"]
 dev = ["pytest>=7"]
 
 [project.scripts]

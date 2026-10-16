@@ -72,6 +72,17 @@ from csr2cdn.metadata import (
     MetadataClient,
     metadata_block_ids,
 )
+from csr2cdn.services import CSR2Services, ServiceNetworkDisabled, ServiceHTTPError
+from csr2cdn.service_events import EventCatalog, EventLeaderboard, EventResolutionError
+from csr2cdn.service_discovery import ShowdownDiscovery, ShowdownCandidate, scan_showdowns, merge_modular_showdown_groups, modular_event_assets
+from csr2cdn.service_models import (
+    OwnCrew, CrewCar, CrewMember, CrewMembers, GCCCrewStanding, GCCCrewStandings,
+    LeaderboardEntry, LeaderboardPage, LeaderboardScore, ServiceResponseError,
+    GCCProgressCrewScore, GCCProgressCrewScores,
+)
+from csr2cdn.crew_rp import CrewRPSnapshot
+from csr2cdn.crew_season import GCCSeasonTiming, CrewSeasonTransition
+from csr2cdn._service_reads import StandingRange
 from csr2cdn.snapshots import (
     SNAPSHOTS_BLOCK,
     SNAPSHOT_KINDS,
@@ -80,10 +91,17 @@ from csr2cdn.snapshots import (
     SnapshotNotFoundError,
 )
 
-__version__ = "0.6.0"
+__version__ = "0.7.0.dev34"
 
 __all__ = [
-    "SnapshotCDN",
+    "CSR2Services", "ServiceNetworkDisabled", "ServiceHTTPError",
+    "EventCatalog", "EventLeaderboard", "EventResolutionError", "StandingRange",
+    "ShowdownDiscovery", "ShowdownCandidate", "scan_showdowns", "merge_modular_showdown_groups", "modular_event_assets",
+    "extract_modular_event_metadata", "load_modular_event_metadata",
+    "OwnCrew", "CrewCar", "CrewMember", "CrewMembers", "GCCCrewStanding", "GCCCrewStandings",
+    "LeaderboardEntry", "LeaderboardPage", "LeaderboardScore",
+    "GCCProgressCrewScore", "GCCProgressCrewScores",
+    "ServiceResponseError", "CrewRPSnapshot", "GCCSeasonTiming", "CrewSeasonTransition", "SnapshotCDN",
     "SnapshotError",
     "SnapshotNotFoundError",
     "SNAPSHOTS_BLOCK",
@@ -140,3 +158,7 @@ __all__ = [
     "successors",
     "__version__",
 ]
+
+from csr2cdn.service_modular_assets import extract_modular_event_metadata, load_modular_event_metadata
+
+from csr2cdn.service_prestige import PrestigeCupDiscovery, PrestigeCupSelection

@@ -1,0 +1,14 @@
+{
+  "ShowdownEventsContainer": {
+    "RaceEventGroups": [
+      {
+        "id": "SYNTHETIC_SHOWDOWN_A",
+        "ScheduleID": "SYNTHETIC_SCHEDULE_A",
+        "Leaderboard": {
+          "LeaderboardTemplateID": "SYNTHETIC_TEMPLATE_ONLY",
+          "LeaderboardUniqueID": "SYNTHETIC_RESOLVED_BOARD"
+        }
+      }
+    ]
+  }
+}

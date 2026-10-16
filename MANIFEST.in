@@ -1,3 +1,6 @@
 include CHANGELOG.md
 include PUBLISHING.md
-include docs/official-snapshots.md
+recursive-include docs *.md *.csv
+recursive-include tests/fixtures *.meta
+
+include VALIDATION_STATUS.md
