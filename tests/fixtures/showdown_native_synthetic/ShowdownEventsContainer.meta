@@ -1,0 +1,18 @@
+{
+  "ShowdownEventsContainer": {
+    "RaceEventGroups": [
+      {
+        "EventGroupName": "SMP_SHOWDOWN_269_W2",
+        "ScheduleID": "SD269",
+        "RaceEvents": [
+          {
+            "EventID": 834201
+          }
+        ],
+        "Leaderboard": {
+          "LeaderboardTemplateID": "SD_RANK"
+        }
+      }
+    ]
+  }
+}

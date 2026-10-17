@@ -1,0 +1,19 @@
+{
+  "EventSchedule": {
+    "ScheduleList": [
+      {
+        "ScheduleID": "SD269",
+        "BasedOn_ScheduleID": "SCHEDULE_269"
+      },
+      {
+        "ScheduleID": "SCHEDULE_269",
+        "Time_ActiveBetweenAny": [
+          {
+            "Start": "2026-10-15T09:00:00+00:00",
+            "End": "2026-10-22T09:00:00+00:00"
+          }
+        ]
+      }
+    ]
+  }
+}

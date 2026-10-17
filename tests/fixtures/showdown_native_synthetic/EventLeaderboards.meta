@@ -1,0 +1,10 @@
+{
+  "EventLeaderboards": {
+    "EventLeaderboardsDefinitions": [
+      {
+        "nameID": "SD_RANK",
+        "rankingOrder": 1
+      }
+    ]
+  }
+}
