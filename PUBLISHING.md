@@ -3,18 +3,16 @@
 Publication uses GitHub Actions and the existing PyPI Trusted Publisher for
 `Nitro4CSR/csr2-cdn`, workflow `publish.yml`, environment `pypi`.
 
-## Current release hold
+## Approval requirement
 
-The 0.7.0 preparation branch disables the publish job with `if: ${{ false }}`.
-Branch pushes and pull requests run tests only. No release may be published
-until the owner explicitly approves the final commit, distributions and notes.
-This branch-local hold does not change the older workflow on `main` until merged;
-do not dispatch that older workflow or publish a release during preparation.
+The owner approved 0.7.0 publication on 2026-10-17 after the final candidate
+passed all 16 CI jobs. Publishing is enabled. Future releases still require
+explicit owner approval before merging, tagging or dispatching publication.
 
 ## After explicit owner approval
 
 1. Confirm the reviewed commit has all 15 matrix jobs and the package job green.
-2. Enable the publishing job in a reviewed follow-up change; rerun CI.
+2. Confirm the publishing workflow is enabled and all release changes passed CI.
 3. Confirm both package versions match, inspect built distributions and hashes,
    and review `docs/0.7.0-release-notes.md`.
 4. Merge the approved release branch and publish the matching `v0.7.0` GitHub

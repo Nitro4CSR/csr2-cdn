@@ -13,7 +13,6 @@ The `events` extra installs UnityPy and lz4 for event-bundle decoding. The base
 package supports CDN access without those optional dependencies. Additional
 extras are `images`, `stores`, and `dev`.
 
-This checkout is preparing 0.7.0; no 0.7.0 release has been published yet.
 For local development, install with `python -m pip install ".[dev,events]"`.
 
 ## Crew and event services
@@ -790,5 +789,3 @@ csr2cdn stubs db.json --output csr2_assets
   database, which is what you want in a long running process after an OTA.
 - `CDN(package_id=..., app_store_id=...)` points the whole chain at a different
   app; the defaults are CSR2's.
-
-

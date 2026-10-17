@@ -1,4 +1,4 @@
-## 0.7.0 (release candidate; unpublished)
+## 0.7.0 — 2026-10-17
 
 - Add read-only crew discovery, rosters, roles, player levels and seasonal Crew RP.
 - Add matched GCC standings and guarded member-total comparisons; supported scope is top ten plus five crews above/below the authenticated crew.

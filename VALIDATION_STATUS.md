@@ -1,4 +1,4 @@
-# 0.7.0 release candidate — unpublished
+# 0.7.0 release validation
 
 ## Accepted scope and live evidence
 
@@ -27,14 +27,17 @@ https://github.com/Nitro4CSR/csr2-cdn/actions/runs/38965264312
 
 The suite has 695 tests. Build validation includes strict Twine checks and
 isolated installation/testing of both the wheel and source distribution.
-Final 0.7.0 version/documentation CI and final artifact checks are pending.
+Final candidate commit `8c5930b5ac1a1e9a636470292388c9eecc7a1f5d` also passed all 16 jobs:
+https://github.com/Nitro4CSR/csr2-cdn/actions/runs/38965576660
 
-## Publication gate
+Both final distributions passed strict Twine checks; the installed wheel passed 695 tests.
 
-No 0.7.0 release or PyPI publication has occurred. The release-preparation
-branch disables the PyPI publishing job with `if: ${{ false }}`. It must remain
-disabled until the owner explicitly approves publication of reviewed artifacts.
-The draft PR remains unmerged; no release tag has been created.
+## Publication approval
+
+The owner explicitly approved publication on 2026-10-17. The publishing job is
+enabled for the release. The approval-only workflow/documentation changes are
+subject to CI before merge and tagging. Actual publication status is recorded
+by the GitHub release and PyPI version, not inferred from this document.
 
 Historical development reports under `docs/` retain the evidence and limitations
 of their respective builds and do not replace this current acceptance record.
