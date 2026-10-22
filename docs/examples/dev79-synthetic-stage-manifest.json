@@ -1,0 +1,41 @@
+{
+  "apk_sha256": "ef24644942674cb3fd7203244795519dab320bd28a8dca5ce70cb965a0fd31c5",
+  "capture": {
+    "capture_id": "synthetic-dev79-001",
+    "kind": "synthetic",
+    "method": "synthetic_fixture",
+    "no_replayed_gameplay_calls": true,
+    "session_continuity_claimed": true
+  },
+  "events": [
+    {
+      "monotonic_tick": 1000,
+      "native_rva": "0x36126F4",
+      "section_sha256": "1d9beafac2ec1b20aa3bd9392fdf5855c31aa3d7baf2a66add2997740a9e6365",
+      "sequence": 1,
+      "stage": "gacha_gate"
+    },
+    {
+      "monotonic_tick": 2000,
+      "native_rva": "0x380B648",
+      "section_sha256": "545df30b6f9ca3e9c670e0f1cfd970f4d878592d62b42c1da679a92e39051000",
+      "sequence": 2,
+      "stage": "paint_lookup"
+    },
+    {
+      "monotonic_tick": 3000,
+      "native_rva": "0x34E8988",
+      "sequence": 3,
+      "stage": "profile_update"
+    },
+    {
+      "monotonic_tick": 4000,
+      "native_rva": "0x380B648",
+      "section_sha256": "545df30b6f9ca3e9c670e0f1cfd970f4d878592d62b42c1da679a92e39051000",
+      "sequence": 4,
+      "stage": "paint_post_refresh"
+    }
+  ],
+  "schema": "csr2cdn.dev79.stage-manifest.v1",
+  "snapshot_sha256": "0a84d0c009cdec7578a1e14b87dad070df4bec27a8fd005bf6045970537aa331"
+}

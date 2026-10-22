@@ -270,7 +270,10 @@ def test_named_live_unresolved_retains_sanitized_metadata_diagnostics(monkeypatc
                         ShowdownDiscovery(lambda:p))
     r=probe.run_live("PRIVATE_PLAYER_ID",metadata_product_version="6.8.11",
                      showdown_name="Championship Showdown",metadata_factory=Source,
-                     auto_crew=False)
+                     auto_crew=False,
+                     # Pinned to the fixture window; see AT at the top of this
+                     # module. Reading the real clock expires the test.
+                     at=AT)
     assert r["checks"]["metadata"]["status"]=="ok"
     assert r["checks"]["metadata"]["unresolved_input_categories"]=={"first_race_event_id":1}
     assert r["checks"]["showdown_selection"]["status"]=="unresolved_input"

@@ -106,6 +106,11 @@ def run_live(
     player_id: str,
     *,
     app_version: str = "6.8.0",
+    #: Instant to evaluate event schedules against. Defaults to the real
+    #: clock. Pass a fixed value to make a run reproducible: without it, a
+    #: report depends on when it was taken, and a test that pins its fixture
+    #: schedule starts failing once that window elapses.
+    at: Optional[datetime] = None,
     metadata_product_version: Optional[str] = None,
     showdown_board: Optional[str] = None,
     showdown_index: Optional[int] = None,
@@ -132,8 +137,13 @@ def run_live(
     Session machinery may independently retry one HTTP 401 as normal. Network
     compatibility must be established against an account owned by the operator.
     """
+    # Resolved once, so every schedule decision in this run and the reported
+    # timestamp all refer to the same instant.
+    evaluated_at = at if at is not None else datetime.now(timezone.utc)
+    if evaluated_at.tzinfo is None:
+        raise ValueError("at must be timezone-aware")
     report = {
-        "at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "at_utc": evaluated_at.isoformat(timespec="seconds"),
         "game_version": app_version,
         "mode": "live_read_only",
         "checks": {},
@@ -167,7 +177,7 @@ def run_live(
             else:
                 discovery = ShowdownDiscovery.from_metadata(
                     client, player_id=player_id, product_version=product_version)
-            all_events = discovery.list_showdowns()
+            all_events = discovery.list_showdowns(at=evaluated_at)
             active = [e for e in all_events if e.time_status == "scheduled_now"]
             resolved = [e for e in active if e.requestable]
             missing = Counter(part for row in all_events
@@ -208,7 +218,7 @@ def run_live(
                     native_car_key=native_prestige_car_key,
                 )
                 try:
-                    resolved_prestige = prestige.resolve_current()
+                    resolved_prestige = prestige.resolve_current(at=evaluated_at)
                     discovered_prestige_board = resolved_prestige.leaderboard_name
                     checks["prestige_discovery"] = {"status": "ok", **prestige.source_summary()}
                 except Exception as exc:
@@ -216,7 +226,8 @@ def run_live(
                                                      **prestige.source_summary()}
             # A named event can be selected among simultaneous Showdowns.
             if showdown_name is not None:
-                discovered_board = discovery.resolve_named(showdown_name).leaderboard_name
+                discovered_board = discovery.resolve_named(
+                    showdown_name, at=evaluated_at).leaderboard_name
             elif showdown_index is not None and 0 <= showdown_index < len(resolved):
                 # Stable selection across ambiguous current-event schedules.
                 choices = sorted(resolved, key=lambda e: getattr(e, "event_id", ""))
