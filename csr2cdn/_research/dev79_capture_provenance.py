@@ -62,12 +62,18 @@ def sha256_file(path: Path) -> str:
 
 
 def read_bounded_json(path: Path) -> tuple[dict[str, Any], bytes]:
-    """Read one regular local JSON file without following symlinks on POSIX."""
+    """Read a regular local JSON file, rejecting symbolic-link inputs."""
     flags = os.O_RDONLY | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NOFOLLOW', 0)
     try:
+        before = os.lstat(path)
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError('input must be a regular file')
         fd = os.open(path, flags)
         with os.fdopen(fd, 'rb') as stream:
-            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            opened = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(opened.st_mode)
+                    or not os.path.samestat(before, opened)
+                    or not os.path.samestat(os.lstat(path), opened)):
                 raise ValueError('input must be a regular file')
             data = stream.read(_MAX_BYTES + 1)
     except OSError as exc:
