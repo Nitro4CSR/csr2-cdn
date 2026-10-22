@@ -6,6 +6,7 @@ Requires lz4 (`pip install lz4`); prints only structural metadata and exact
 small text markers that are relevant to locating a Prestige template.
 """
 import struct
+import lzma
 
 MAX_BUNDLE = 32 * 1024 * 1024
 MAX_DECOMPRESSED = 80 * 1024 * 1024
@@ -70,7 +71,31 @@ def load_unityfs(blob):
         chunk = blob[p:p + c]
         p += c
         kind = f & 0x3f
-        result = chunk if kind == 0 else lz4.block.decompress(chunk, uncompressed_size=u) if kind in (2, 3) else None
+        if len(content) + u > MAX_DECOMPRESSED or u > MAX_DECOMPRESSED:
+            raise ValueError('Decompressed limit exceeded')
+        if kind == 0:
+            result = chunk
+        elif kind in (2, 3):
+            result = lz4.block.decompress(chunk, uncompressed_size=u)
+        elif kind == 1:
+            # Observed Android ASTC Car*Library bundles use Unity LZMA blocks.
+            # Unity stores a five-byte LZMA1 properties header, not the eight-byte
+            # uncompressed size required by Python's FORMAT_ALONE reader.
+            if len(chunk) < 6 or chunk[0] != 0x5d:
+                raise ValueError('Unsupported Unity LZMA properties')
+            dictionary = struct.unpack_from('<I', chunk, 1)[0]
+            if not 4096 <= dictionary <= 8 * 1024 * 1024:
+                raise ValueError('Unity LZMA dictionary exceeds limit')
+            try:
+                dec = lzma.LZMADecompressor(format=lzma.FORMAT_RAW, filters=[{
+                    'id': lzma.FILTER_LZMA1, 'dict_size': dictionary,
+                    'lc': 3, 'lp': 0, 'pb': 2,
+                }])
+                result = dec.decompress(chunk[5:], max_length=u + 1)
+            except lzma.LZMAError:
+                raise ValueError('Bad Unity LZMA block') from None
+        else:
+            result = None
         if result is None or len(result) != u:
             raise ValueError('Bad block data')
         content.extend(result)

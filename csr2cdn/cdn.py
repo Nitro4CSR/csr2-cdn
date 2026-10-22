@@ -19,7 +19,7 @@ game version is hard coded: the store gives the app version, that gives the base
 branch, that gives ``product_version``, and that lets the metadata service
 announce the current branch. Give it a ``zid`` and it can do all of it::
 
-    cdn = CDN(zid="94866657860")
+    cdn = CDN(zid="YOUR_PLAYER_ID")
     cdn.branch             # '6_7_0_Release_OTA_1'
     cdn.product_version    # '6.7.81'
     cdn.download_asset("CarPaintLibrary")

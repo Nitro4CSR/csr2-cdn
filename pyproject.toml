@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "csr2-cdn"
-version = "0.7.0"
+version = "0.7.1"
 description = "Client for the CSR2 game and HUB CDNs: assets, databases, metadata, snapshots and HUB resources"
 readme = "README.md"
 license = "MIT"
@@ -30,6 +30,7 @@ stores = ["google-play-scraper>=1.2"]
 images = ["UnityPy>=1.20"]
 events = ["UnityPy>=1.20", "lz4>=4.0"]
 dev = ["pytest>=7"]
+attestation = ["cryptography>=41"]
 
 [project.scripts]
 csr2cdn = "csr2cdn.cli:main"
@@ -40,6 +41,17 @@ Issues = "https://github.com/Nitro4CSR/csr2-cdn/issues"
 
 [tool.setuptools.packages.find]
 include = ["csr2cdn*"]
+# Offline research scaffolding: kept in the repository and the sdist for
+# provenance, excluded from the wheel. None of it is importable from the
+# public API and none of it works without an APK this project never ships.
+exclude = ["csr2cdn._research*"]
+
+[tool.setuptools]
+# MANIFEST.in keeps csr2cdn/_research in the sdist. With the default
+# include-package-data, setuptools would then also install those files into
+# the wheel as package data, defeating the packages.find exclude above. Only
+# the package-data declared below ships.
+include-package-data = false
 
 [tool.setuptools.package-data]
 csr2cdn = ["py.typed", "block_ids.json"]

@@ -38,20 +38,7 @@ DEFAULT_AGENT = "Dalvik/2.1.0 (Linux; U; Android 13; Pixel Build/TQ3A.230805.001
 _PROTOCOL_VERSION = "5"
 _PRODUCT_NAME = "csr2"
 _PRODUCT_PLATFORM = "googleplay"
-def _portal_protocol_key() -> str:
-    # Recoverable obfuscation only: this shared protocol key ships with the
-    # client. It is not encrypted storage or a player/session credential.
-    chunks = tuple(base64.b85decode(part) for part in (
-        'JeE62N~xN{FqOU',
-        'xKf;CQT0!%=kAL',
-        'qCoYSb=riy5&!',
-    ))
-    mask = hashlib.sha256(b"csr2-portal-wire-format-v5").digest()
-    return bytes(
-        chunks[i % 3][i // 3] ^ mask[i % len(mask)] ^ ((i * 73 + 19) & 255)
-        for i in range(sum(map(len, chunks)))
-    ).decode("ascii")
-
+_PORTAL_PRESHARED_KEY = "ngzmayqZgvgg8RF4qgDef9YhGNwBhhya"
 # No live read operations have been verified for this package.
 # Keep all signing helpers internal until explicit read-only contracts exist.
 
@@ -131,7 +118,7 @@ def prepare_portal_request(
     identity_sha1 = hashlib.sha1(ident_json.encode("utf-8")).hexdigest()
     # Preserve the single working selection flow from the reference client.
     zid_field = ""
-    security_preimage = identity_sha1 + zid_field + nmclient + _PRODUCT_NAME + _PRODUCT_PLATFORM + _portal_protocol_key()
+    security_preimage = identity_sha1 + zid_field + nmclient + _PRODUCT_NAME + _PRODUCT_PLATFORM + _PORTAL_PRESHARED_KEY
     security_hash = hashlib.sha1(security_preimage.encode("utf-8")).hexdigest()
     device_data = {
         "cpu": {"cores": 8, "family": "ARM64", "features": {}},

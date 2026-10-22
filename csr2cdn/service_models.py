@@ -66,6 +66,22 @@ def _str(obj: Mapping[str, Any], *names: str) -> Optional[str]:
     return None if v is None else str(v)
 
 
+#: Backend sentinel for an absent optional value: a Haskell-style ``Maybe``
+#: encoding leaking onto the wire. Every live leagues row carries it as its
+#: ``multiplier``, so reading it as a value would report the string
+#: "Monadic::Nothing" as a real multiplier.
+MONADIC_NOTHING = "Monadic::Nothing"
+
+
+def _optional_str(obj: Mapping[str, Any], *names: str) -> Optional[str]:
+    """``_str`` that treats the empty string and the Nothing sentinel as absent."""
+    value = _str(obj, *names)
+    if value is None:
+        return None
+    stripped = value.strip()
+    return None if stripped == "" or stripped == MONADIC_NOTHING else value
+
+
 def _int(obj: Mapping[str, Any], *names: str) -> Optional[int]:
     v = _field(obj, *names)
     if v is None or isinstance(v, bool):
@@ -89,14 +105,40 @@ class OwnCrew:
     member_count: Optional[int] = None
     player_role: Optional[str] = None
     extras: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
-
     @property
     def in_crew(self) -> bool:
         return self.crew_uid is not None
 
+    #: Service error code meaning the account holds no crew membership.
+    NO_CREW_ERROR_CODE = 306
+    #: Error text accompanying that code.
+    NO_CREW_ERROR_TEXT = "player not in crew"
+
+    @classmethod
+    def _is_no_crew(cls, node: Any) -> bool:
+        """True only for the service's documented crewless envelope."""
+        if not isinstance(node, Mapping):
+            return False
+        if any(key in node for key in ("crewUID", "crew_uid")):
+            return False
+        code = node.get("error_code", node.get("errorCode"))
+        text = node.get("Error", node.get("error"))
+        code_matches = code == cls.NO_CREW_ERROR_CODE
+        text_matches = (isinstance(text, str)
+                        and text.strip().lower() == cls.NO_CREW_ERROR_TEXT)
+        return bool(code_matches and text_matches)
+
     @classmethod
     def from_response(cls, response: Any) -> "OwnCrew":
         node = _payload(response)
+        # A crewless account is answered with an error envelope, not an empty
+        # membership record. Verified live against 6.8.0 on 2026-10-21:
+        #   {"Error": "Player not in crew", "error_code": 306,
+        #    "player_uid": "...", "total_invites": 0, "app_ver": "1.6.2"}
+        # Only this exact, documented shape is read as "no crew"; anything else
+        # still raises, so a malformed reply is never silently downgraded.
+        if cls._is_no_crew(node):
+            return cls(None, extras=dict(node))
         # Do not turn a malformed or unexpected response into "no crew".
         marker_keys = ("crewUID", "crew_uid", "playerUID", "crewName",
                        "crew_name", "memberCount", "playerRole")
@@ -114,7 +156,9 @@ class OwnCrew:
             except Exception:
                 raise ServiceResponseError("invalid crew membership identifier") from None
         return cls(uid, _str(node, "crewName", "crew_name"),
-                   _int(node, "memberCount", "membersTotal"),
+                   # The live 6.8.0 reply spells the current size `members`;
+                   # without it `member_count` was None on every real response.
+                   _int(node, "memberCount", "membersTotal", "members"),
                    _str(node, "playerRole", "player_role"), dict(node))
 
 
@@ -478,7 +522,6 @@ class CrewMember:
     # counter, NOT proof of a backend season ID or rollover semantics.
     season_crew_rp: Optional[int] = None
 
-
 @dataclass(frozen=True)
 class CrewMembers:
     crew_uid: str
@@ -671,6 +714,16 @@ class LeaderboardScore:
     rank: Optional[int] = None
     period_offset: int = 0
     extras: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
+    # Appended in 0.7.1.dev84, from the live Showdown Leagues score response.
+    #: Unix seconds the score was last written, as sent.
+    last_updated: Optional[int] = None
+    #: Unix seconds the server signed this response.
+    sig_timestamp: Optional[int] = None
+    #: Whether the response carried a `sig`. The signature itself is a 64-hex
+    #: server-side integrity value and is NOT retained: it belongs to the
+    #: opaque-token family this package does not model, alongside `auth` and
+    #: `hidden_token`. It stays available in `extras` for anyone who needs it.
+    signature_present: Optional[bool] = None
 
     @classmethod
     def from_response(cls, board: str, response: Any, *, period_offset: int = 0) -> "LeaderboardScore":
@@ -682,7 +735,12 @@ class LeaderboardScore:
         rank = _int(payload, "rank", "position")
         if score is None and rank is None:
             raise ServiceResponseError("score/rank fields missing from leaderboard-score response")
-        return cls(board, score, rank, period_offset, dict(payload))
+        signature = _field(payload, "sig")
+        return cls(board, score, rank, period_offset, dict(payload),
+                   last_updated=_int(payload, "last_updated", "lastUpdated"),
+                   sig_timestamp=_int(payload, "sig_timestamp", "sigTimestamp"),
+                   signature_present=(isinstance(signature, str)
+                                      and bool(signature.strip())))
 
 
 @dataclass(frozen=True)
@@ -693,6 +751,18 @@ class LeaderboardEntry:
     score: Optional[int]
     crew_id: Optional[str] = None
     extras: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
+    # Appended in 0.7.1.dev84, from the live Showdown Leagues board.
+    #: Unix seconds this row was last written, as sent. 20 distinct values
+    #: across 21 live rows, so it is per-row rather than per-response.
+    last_updated: Optional[int] = None
+    #: Score multiplier. Absent on every live row, where the backend sends its
+    #: ``Monadic::Nothing`` sentinel rather than omitting the key; that is
+    #: normalised to None, so a real multiplier is never confused with it.
+    multiplier: Optional[str] = None
+    #: Season-pass boost payload. An empty object on every live row; retained
+    #: as sent so a future payload is visible rather than silently dropped.
+    sp_boost_data: Mapping[str, Any] = field(default_factory=dict, repr=False,
+                                             compare=False)
 
 
 @dataclass(frozen=True)
@@ -729,7 +799,17 @@ class LeaderboardPage:
                 player_id=_str(raw, "player_uid", "playerUID", "zid", "player_id", "playerId"),
                 player_name=_str(raw, "name", "player_name", "playerName"),
                 score=_int(raw, "score", "points", "trophies"),
-                crew_id=_str(raw, "crew_uid", "crewUID", "crew_id"), extras=dict(raw),
+                # The leagues board spells it `crewId`, which this missed.
+                # It is an empty string on every live leagues row, because that
+                # board ranks players rather than crews, so the effect today is
+                # None either way -- but the spelling is read now, so a
+                # populated value is not silently discarded.
+                crew_id=_optional_str(raw, "crew_uid", "crewUID", "crew_id", "crewId"),
+                extras=dict(raw),
+                last_updated=_int(raw, "last_updated", "lastUpdated"),
+                multiplier=_optional_str(raw, "multiplier"),
+                sp_boost_data=(dict(raw["sp_boost_data"])
+                               if isinstance(raw.get("sp_boost_data"), Mapping) else {}),
             ))
         player = _field(node, "player", "currentPlayer", "myRank")
         if not isinstance(player, Mapping):

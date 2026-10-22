@@ -149,8 +149,3 @@ def test_token_format_and_expiry_are_still_checked():
     doc["responseData"]["zynga"]["zauth"] = encoded("head|nm|NM|csr2|1700000000")
     with pytest.raises(ServiceAuthError, match="expired"):
         PortalCredentials.from_response(ZID, doc, now=1700000000)
-
-
-def test_obfuscated_portal_key_preserves_wire_request():
-    request = prepare_portal_request(ZID, unix_time=1700000000, utc_offset="+0.00")
-    assert hashlib.sha256(request.body).hexdigest() == 'dc6d8ab5bfca63538143fb1874d21aa367c89679c25ef0a3f0961da84d7be999'

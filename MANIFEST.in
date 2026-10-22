@@ -1,8 +1,23 @@
 include CHANGELOG.md
 include PUBLISHING.md
+include VALIDATION_STATUS.md
+include LICENSE
+
+# Documentation, including the synthetic JSON fixtures the dev78/79 capture
+# tests read. Only *.md and *.csv were listed, so those JSON files were absent
+# from the source distribution and four test modules could not run from it.
 recursive-include docs *.md *.csv
+recursive-include docs/examples *.json
+
+# The whole test suite, explicitly. Relying on setuptools' implicit handling
+# collected test_*.py but not conftest.py, which six modules import for the
+# `requires_symlinks` marker, so they failed collection in the sdist.
+recursive-include tests *.py
 recursive-include tests/fixtures *.meta
 
-include VALIDATION_STATUS.md
-
+# Runnable example scripts.
 recursive-include examples *.py
+
+# Research scaffolding ships in the sdist (provenance for CHANGELOG claims)
+# but not the wheel; see the packages.find exclude in pyproject.toml.
+recursive-include csr2cdn/_research *.py

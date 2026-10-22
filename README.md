@@ -1,106 +1,20 @@
 # csr2-cdn
 
-Python client for CSR2 assets, metadata, official snapshots, CSR2 HUB resources,
-and read-only crew and event leaderboards. Requires Python 3.9 or newer.
+A Python client for the CSR2 asset CDN and its metadata service: resolve the
+current asset database branch, download asset databases, address every asset by
+name, fetch asset bundles, and pull metadata blocks. Also access the complete
+CSR2 HUB CDN through `HubCDN`: all resource folders and root files, not just
+snapshots. `SnapshotCDN` accesses the official car PNG CDN using the
+`CDNSnapshots` metadata catalogue.
 
-## Installation
+Not affiliated with, endorsed by or connected to Zynga, NaturalMotion or any of
+their subsidiaries. Game metadata requests need your own `zid`; HUB does not.
 
-```console
-python -m pip install "csr2-cdn[events]"
+```bash
+pip install csr2-cdn            # requests only
+pip install csr2-cdn[stores]    # adds google-play-scraper for the Play lookup
+pip install csr2-cdn[images]    # adds UnityPy for HUB bundle image extraction
 ```
-
-The `events` extra installs UnityPy and lz4 for event-bundle decoding. The base
-package supports CDN access without those optional dependencies. Additional
-extras are `images`, `stores`, and `dev`.
-
-For local development, install with `python -m pip install ".[dev,events]"`.
-
-## Crew and event services
-
-Game-service requests require your own PlayerID and explicit network opt-in.
-Event discovery uses current metadata and assets rather than a bundled car or
-event catalogue. An event ID is not automatically a leaderboard name.
-
-```python
-from getpass import getpass
-from csr2cdn import CSR2Services
-
-with CSR2Services(getpass("PlayerID: "), allow_network=True) as api:
-    crew = api.get_my_crew()
-    members = api.get_crew_members()
-    snapshot = api.get_crew_rp_snapshot()
-    print(snapshot.public_summary())  # aggregate output without member identities
-```
-
-Member `season_crew_rp` comes from native `cc_contrib`. It remains separate from
-`player_rp`, lifetime values and cumulative own-crew statistics. A snapshot
-matches the exact crew ID, checks roster coverage and read timing, and reports
-whether the member sum can be compared with the GCC score. Reads are sequential,
-not atomic. The accepted GCC view is the top ten crews plus five above and five
-below your crew; full leaderboard pagination is deferred to 0.7.1.
-
-```python
-with CSR2Services(getpass("PlayerID: "), allow_network=True) as api:
-    standings = api.get_showdown_leaderboard(
-        showdown_name="Championship Showdown"
-    )
-```
-
-Showdown names resolve through current schedules and metadata. Ambiguous or
-incomplete event data raises an error rather than selecting a guessed board.
-
-### Prestige Cup
-
-The global and crew views use separate server requests. The crew view is not a
-local filter of the limited global response. Supply verified current runtime
-inputs when the metadata cannot establish them automatically:
-
-```python
-with CSR2Services(getpass("PlayerID: "), allow_network=True) as api:
-    inputs = dict(
-        season=current_season,
-        prestige_car_tier=current_car_tier,
-        prestige_car_key=current_car_crdb,
-    )
-    global_page = api.get_current_prestige_cup_leaderboard(**inputs)
-    crew_page = api.get_current_prestige_cup_crew_leaderboard(**inputs)
-```
-
-The variables above must describe the active event; historical season/car
-examples are not defaults. For an already resolved board, use
-`get_prestige_cup_leaderboard(leaderboard_name=...)` and
-`get_prestige_cup_crew_leaderboard(leaderboard_name=...)`.
-
-Prestige fastest-half-mile scores are integer microseconds. Display them using
-`csr2cdn.prestige_time.format_prestige_time(score)` for exactly six decimal places.
-Keep raw scores for comparisons; this conversion does not apply to Crew RP.
-Placements are preserved as received. The observed shared player had the same
-rank and score in both views; that does not establish every crew placement's
-scope or guarantee a complete crew response.
-
-### Validation and limits
-
-```console
-python -m pytest -q
-python -m csr2cdn.prestige_release_validation --ui-window --crew-filtered
-python -m csr2cdn.crew_endpoint_inventory
-python -m csr2cdn.crew_season_validation --simulate
-```
-
-These diagnostic commands make no game requests unless `--execute` is supplied.
-Live tools prompt privately for PlayerID. Entry printing is opt-in and can expose
-member names and statistics; keep those reports private. No save-game writes,
-chat retrieval or live racing presence subscriptions are provided.
-
-Crew RP and supported leaderboard reads have been tested against CSR2 6.8.0.
-Server changes, account eligibility and missing metadata can still prevent a
-read. Actual season rollover remains unobserved; synthetic reset and timing
-checks passed. Values always come from the server and are never reset locally.
-Optional statistics, deeper vehicle data and full GCC pagination are deferred.
-
-See [validation status](VALIDATION_STATUS.md), [release notes](docs/0.7.0-release-notes.md)
-and [publication procedure](PUBLISHING.md). The development investigation documents
-under `docs/` describe their respective historical builds, not current release gates.
 
 ## Official car snapshots (0.6.0)
 
@@ -770,6 +684,171 @@ csr2cdn stubs db.json --output csr2_assets
 
 `--zid`, `--branch`, `--product-version`, `--release-version`, `--probe`,
 `--no-preemptive` and `--cache-dir` are global and apply to every subcommand.
+
+## Crew reads and cosmetics
+
+These need the player's own ZID and an authenticated session. All of it is
+read-only: the package makes no gameplay writes and calls no save API.
+
+```python
+from csr2cdn import CSR2Services, CrewOptionalSnapshot
+
+with CSR2Services("YOUR_PLAYER_ID", allow_network=True) as services:
+    own = services.get_my_crew()          # crews/checkUserCrew
+    roster = services.get_crew_members(own.crew_uid)   # crews/viewMembers
+
+snapshot = CrewOptionalSnapshot.from_reads(own, roster)
+snapshot.crew.members, snapshot.crew.max_members, snapshot.crew.seats_free
+snapshot.crew.crew_status          # e.g. 'JoinByRequest'
+snapshot.members[0].stats.tier     # raw wire enum; no label table exists
+```
+
+An account with no crew is answered by the service with an error envelope
+rather than an empty membership record. Only that exact documented shape
+(`error_code` 306 with the matching text) is read as "no crew"; anything else
+still raises, so a malformed reply is never quietly downgraded.
+
+### Resolving a car's cosmetics
+
+A crew member's appearance arrives as numbers. Most are global library IDs, but
+**paint is an index** into a list composed per car:
+
+```
+valid(paint) = dedup(CarVisualsData.CarPaintIDs
+                     + flatten(AllUnlockables.carPaintIDs)
+                     + GachaConfigs.PaintID)
+```
+
+The unlockable lists are ragged arrays whose milestone groups are terminated by
+`-1` (`"-1"` for wheel names); those sentinels are separators, not entries.
+`INT32_MAX` and `INT32_MIN` mark an unset slot.
+
+```python
+from csr2cdn import CDN
+from csr2cdn.car_visuals_data import load_index_space, resolve_appearance
+
+with CDN(zid="YOUR_PLAYER_ID", probe=True) as cdn:
+    space = load_index_space(cdn, "Ford_Mustang302_1970")
+    space.resolve_index(0)    # 1156 -> 'Ford Calypso Coral'
+    space.resolve_index(15)   # 1323 -> 'Ford Dark Highland Green'
+```
+
+`interior`, `calliper`, `livery`, `livery_zones_set` and the rest are global
+library IDs; a car's own list is an *eligibility set* for them, not an index
+space. Zone masks and livery sets are separate lists against separate
+libraries (`LiveryZonesSetLibrary` and `LiverySetLibrary`), and zone mask `0`
+is the real record `FULL BODY`, not an absence.
+
+Labels come from the shipped cosmetic libraries. `csr2cdn.visual_library_typetree`
+decodes all twenty-one, four of which only read through its UnityPy type-tree
+fallback:
+
+```python
+from csr2cdn.visual_library_typetree import LIBRARY_SLOTS, decode_library, merge
+
+library = merge([decode_library(cdn.download_asset(cdn.database.assets.get(name)), name)
+                 for name in LIBRARY_SLOTS if cdn.database.assets.get(name)])
+```
+
+### Tuner Stars parts
+
+`car_tnr_setup` carries seven keys. `RIMS`, `TIRE` and `BOOST_COLOR` resolve
+against their libraries — this is where a wheel's **name** lives, so rim
+`1000200` is `'84A'`. The rim and boost-colour libraries start at 1,000,001, so
+a `0` from a car with no Tuner Stars part fitted means stock, not a failed
+lookup.
+
+The upper-case geometry slots have no library because they have no name: of
+22,048 localisation keys, none embeds a kit, hood or wing index. The game shows
+numbered thumbnails, so a part's only stable identifier is its asset code.
+
+```python
+from csr2cdn import CarBodyPartInventory, resolve_body_parts
+
+inventory = CarBodyPartInventory.from_asset_codes(cdn.database.assets.codes,
+                                                  "Honda_CivicEGTNR_1995")
+inventory.kits            # (0, 1, 2, 3)
+resolve_body_parts({"BODYKIT": 2, "HOOD": 1}, inventory)
+# BODYKIT -> Honda_CivicEGTNR2_1995_loda
+# HOOD    -> Honda_CivicEGTNR_1995_Hood2b_loda
+```
+
+`HOOD` and `WING` are a variant selector over the fitted kit (`0` primary,
+`1` secondary), bounded to `{0, 1}` and forced to `0` while `BODYKIT` is `0`.
+25 cars ship the full kits+hoods+wings triple, all of them TNR models, each
+with `1 + 2K` hood and wing options for K kit levels. `WHEELS` is a retired
+slot, split into `RIMS` and `TIRE`, and is reported as `retired_slot`.
+
+Matching is case-insensitive, because these assets are published lower-cased.
+
+### Crew tournament
+
+`snapshot.tournament` decodes the own-crew tournament tree:
+
+```python
+tournament = snapshot.tournament
+tournament.current_event_id      # highest event id present
+tournament.cadence_days          # 14, derived from the reward timestamps
+tournament.events[-1].rivals     # the three crews in that match-up
+tournament.events[-1].members    # participating players' in-game IDs
+```
+
+Event IDs are a consecutive fortnight counter and each event's `vanity_reward`
+is `"<tier>_<unix seconds>"`, landing on Thursdays at 10:00 UTC. The wire
+`hash` is not a digest: it is the participating crew IDs joined by `_`, so it
+carries nothing the `crews` array does not, and it is surfaced as
+`matchup_key_consistent`. `meta.prev_match` names the *current* match-up
+despite its name, reported as `prev_match_is_current_event`.
+
+A rival's `name` and `logo_id` are **point-in-time**, recorded as they stood at
+that event rather than today, so `crew_id` is the stable key.
+
+## Leaderboards
+
+```python
+from csr2cdn import LeaderboardPage
+
+page = LeaderboardPage.from_response(board_name, response)
+page.entries[0].rank, page.entries[0].score, page.entries[0].last_updated
+```
+
+One wire quirk worth knowing: the backend sends the literal string
+`"Monadic::Nothing"` in place of omitting an absent optional value. Every live
+leagues `multiplier` is that sentinel. It is exported as
+`csr2cdn.service_models.MONADIC_NOTHING` and normalised to `None`, so it is
+never read as a real value.
+
+A leagues score response carries a 64-hex `sig`. `LeaderboardScore` reports
+`signature_present` and deliberately does not retain the signature itself; it
+stays in `extras`.
+
+## What this package does not model
+
+Some wire fields are read and deliberately not surfaced as typed attributes:
+
+- `facebook_id` — a real-world social account rather than game data.
+- Opaque auth and token fields anywhere in a response, and any unrecognised
+  key. Only known keys are decoded, so a token added server-side is never held
+  on a model at all.
+
+Everything withheld stays reachable through the relevant `extras` mapping, so
+withholding governs typed output rather than caller access.
+
+## Research modules
+
+`csr2cdn/_research/` holds the offline investigation tooling behind the
+findings above: IL2CPP/ARM64 witnesses, pinned APK audits, Unity bundle
+readers, and the capture provenance and attestation chain.
+
+It is **private and excluded from the wheel**. Every module there needs an
+input this project never publishes — your own APK, Unity bundles, or private
+endpoint captures — so none of it is usable from a PyPI install. It ships in
+the source distribution because it is the provenance for claims in
+`CHANGELOG.md` and `VALIDATION_STATUS.md`. Names there may change without
+notice, and nothing in the public API imports from it.
+
+The `attestation` extra (`pip install -e .[attestation]`) applies to those
+tools when running from a checkout.
 
 ## Notes
 

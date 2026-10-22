@@ -5,7 +5,7 @@ Typical use::
     from csr2cdn import CDN
 
     cdn = CDN()
-    cdn = CDN(zid="94866657860")
+    cdn = CDN(zid="YOUR_PLAYER_ID")
 
     database = cdn.database                       # current branch, resolved for you
     asset = database.assets.Lamborghini_AventadorLP7004_2011_loda
@@ -80,6 +80,25 @@ from csr2cdn.service_models import (
     LeaderboardEntry, LeaderboardPage, LeaderboardScore, ServiceResponseError,
     GCCProgressCrewScore, GCCProgressCrewScores,
 )
+from csr2cdn.crew_optional_data import (CrewOptionalSnapshot, CrewOptionalStats, CrewMemberOptionalStats, CrewMemberVehicle, CrewVehicleGacha, CrewVehicleAppearance, CrewVehicleVisuals, CrewVisualSelection, InteriorDisplayName, CrewEmblem, CrewPresentation, CrewTournamentShape,
+                                      CrewTournament, CrewTournamentEvent, CrewTournamentRival,
+                                      TOURNAMENT_CADENCE_DAYS)
+from csr2cdn.vehicle_catalog import VehicleCatalog, VehicleCatalogEntry, resolve_vehicle_report
+from csr2cdn.customization_evidence import (CosmeticCandidateCatalog, CosmeticCandidate,
+    inspect_customization_apk, cosmetic_coverage_report)
+from csr2cdn.game_labels import (CarNameStyle, GameCarTranslations, GameCarName, CarDisplayName, GameVisualLibrary, VisualCodeName, game_label_report, metadata_library_inventory)
+from csr2cdn.native_game_sources import (TranslationLayout, VisualJsonLayout, decode_translation_flatbuffer, decode_visual_metadata_cache, inspect_metadata_cache, load_translation_source, load_visual_source, SourceSchemaError)
+from csr2cdn.car_body_parts import (BODY_PART_SLOTS, VARIANT_SLOTS, RETIRED_SLOTS, BodyPartSelection,
+                                    CarBodyPartInventory, bodykit_asset_code,
+                                    part_asset_code, resolve_body_parts)
+from csr2cdn.localisation_bundle import (decode_localisation_unityfs, load_localisation_unityfs, LocalisationSourceError)
+from csr2cdn.visual_library_bundle import (decode_visual_unityfs, load_visual_unityfs, load_visual_libraries_unityfs, VisualLibrarySourceError)
+from csr2cdn.visual_asset_plan import (VisualAssetCandidate, VisualAssetPlan, VISUAL_ASSET_SLOTS, PENDING_VISUAL_ASSET_SLOTS, plan_visual_assets, plan_visual_assets_from_file)
+from csr2cdn.visual_source_recon import (VisualArrayShape, VisualBlockShape, VisualSourceInventory, VISUAL_SOURCE_BLOCKS, inspect_visual_cache)
+from csr2cdn.bulk_review import BulkUIReference, review_bulk_evidence
+from csr2cdn.visual_gap_diagnostics import (VisualGapDiagnostics, VisualGapSlot, analyze_visual_gaps)
+from csr2cdn.visual_asset_refresh import (VisualAssetRefreshSlot, VisualAssetRefreshReport, compare_visual_asset_plans, compare_visual_asset_databases)
+from csr2cdn.visual_source_delta import (VisualSourceDelta, VisualSourceDeltaSlot, VisualMissingIDRecheck, VisualMissingIDSlot, compare_visual_sources, recheck_visual_missing_ids)
 from csr2cdn.crew_rp import CrewRPSnapshot
 from csr2cdn.crew_season import GCCSeasonTiming, CrewSeasonTransition
 from csr2cdn._service_reads import StandingRange
@@ -91,7 +110,7 @@ from csr2cdn.snapshots import (
     SnapshotNotFoundError,
 )
 
-__version__ = "0.7.0"
+__version__ = "0.7.1"
 
 __all__ = [
     "CSR2Services", "ServiceNetworkDisabled", "ServiceHTTPError",
@@ -101,7 +120,20 @@ __all__ = [
     "OwnCrew", "CrewCar", "CrewMember", "CrewMembers", "GCCCrewStanding", "GCCCrewStandings",
     "LeaderboardEntry", "LeaderboardPage", "LeaderboardScore",
     "GCCProgressCrewScore", "GCCProgressCrewScores",
-    "ServiceResponseError", "CrewRPSnapshot", "GCCSeasonTiming", "CrewSeasonTransition", "SnapshotCDN",
+    "ServiceResponseError", "CrewOptionalSnapshot", "CrewOptionalStats", "CrewMemberOptionalStats",
+    "CrewTournament", "CrewTournamentEvent", "CrewTournamentRival", "TOURNAMENT_CADENCE_DAYS",
+    "CrewMemberVehicle", "CrewVehicleGacha", "CrewVehicleAppearance", "CrewVehicleVisuals", "CrewVisualSelection", "InteriorDisplayName", "CrewEmblem",
+    "CrewPresentation", "CrewTournamentShape", "BulkUIReference", "review_bulk_evidence", "VisualGapDiagnostics", "VisualGapSlot", "analyze_visual_gaps", "VisualSourceDelta", "VisualSourceDeltaSlot", "VisualMissingIDRecheck", "VisualMissingIDSlot", "compare_visual_sources", "recheck_visual_missing_ids", "VehicleCatalog", "VehicleCatalogEntry",
+    "resolve_vehicle_report", "CosmeticCandidateCatalog", "CosmeticCandidate",
+    "CarNameStyle", "GameCarTranslations", "GameCarName", "CarDisplayName", "GameVisualLibrary", "VisualCodeName", "game_label_report", "metadata_library_inventory",
+    "TranslationLayout", "VisualJsonLayout", "decode_translation_flatbuffer", "decode_visual_metadata_cache", "inspect_metadata_cache", "load_translation_source", "load_visual_source", "SourceSchemaError",
+    "BODY_PART_SLOTS", "VARIANT_SLOTS", "RETIRED_SLOTS", "BodyPartSelection", "CarBodyPartInventory",
+    "bodykit_asset_code", "part_asset_code", "resolve_body_parts",
+    "decode_localisation_unityfs", "load_localisation_unityfs", "LocalisationSourceError",
+    "decode_visual_unityfs", "load_visual_unityfs", "load_visual_libraries_unityfs", "VisualLibrarySourceError",
+    "VisualAssetRefreshSlot", "VisualAssetRefreshReport", "compare_visual_asset_plans", "compare_visual_asset_databases",
+    "VisualAssetCandidate", "VisualAssetPlan", "VISUAL_ASSET_SLOTS", "PENDING_VISUAL_ASSET_SLOTS", "plan_visual_assets", "plan_visual_assets_from_file",
+    "inspect_customization_apk", "cosmetic_coverage_report", "CrewRPSnapshot", "GCCSeasonTiming", "CrewSeasonTransition", "SnapshotCDN",
     "SnapshotError",
     "SnapshotNotFoundError",
     "SNAPSHOTS_BLOCK",

@@ -284,6 +284,36 @@ def gcc_progress_contract(*, endpoint_prefix: str = GCC_METADATA_DEFAULT_PREFIX,
     return ReadContract(endpoint_prefix + "viewcrew", params, 3,
                         "Fetches GCC current progress (experimental)")
 
+# Bounded exploration of the SAME read-only GCC route. The 6.8.0 native
+# generic standings serializer accepts these four integers, but the GCC UI
+# call site was observed using common(); arbitrary ranges are NOT verified.
+_GCC_RANGE_PROBE_OPERATION = "Fetches GCC current progress (bounded range probe; unverified)"
+
+
+def gcc_progress_range_contract(ranges: StandingRange, *, app_version: str = "6.8.0",
+                                exploratory: bool = False) -> ReadContract:
+    """Explicitly opt in to one bounded GCC progress range, never crawling.
+
+    No full pagination/offset semantics are inferred. Avoid the native signed
+    32-bit domain's huge values until a server response establishes behavior.
+    Keep the known common-range production method separate.
+    """
+    if exploratory is not True:
+        raise ReadContractError("exploratory=True required for a GCC range probe")
+    if not isinstance(ranges, StandingRange):
+        raise ReadContractError("an explicit StandingRange is required")
+    if (type(ranges.top) is not int or not 1 <= ranges.top <= 50 or
+            type(ranges.after) is not int or not 0 <= ranges.after <= 30 or
+            type(ranges.before) is not int or not 0 <= ranges.before <= 30 or
+            type(ranges.offset) is not int or not 0 <= ranges.offset <= 1000 or
+            ranges.top + ranges.before + ranges.after > 100):
+        raise ReadContractError("GCC probe ranges must be bounded (top 1..50, before/after 0..30, offset 0..1000, total <=100)")
+    params = OrderedDict([("app_ver", _version(app_version))])
+    params.update(ranges.as_wire_params())
+    return ReadContract(GCC_METADATA_DEFAULT_PREFIX + "viewcrew", params, 3,
+                        _GCC_RANGE_PROBE_OPERATION)
+
+
 def prepare_read_contract(
     credentials: PortalCredentials, contract: ReadContract,
     *, web_api_url: str = "https://prod-web.csr2.zynga.com",
@@ -306,10 +336,18 @@ def prepare_read_contract(
         canonical = crew_members_contract(contract.params["crew_uid"], app_version=contract.params["app_ver"])
     elif (contract.route == GCC_METADATA_DEFAULT_PREFIX + "viewcrew" and
           contract.request_type == 3 and
-          contract.operation == "Fetches GCC current progress (experimental)"):
+          contract.operation in ("Fetches GCC current progress (experimental)",
+                                 _GCC_RANGE_PROBE_OPERATION)):
         if tuple(contract.params) != ("app_ver", "top", "after", "before", "offset"):
             raise ReadContractError("unexpected GCC progress range fields")
-        canonical = gcc_progress_contract(app_version=contract.params["app_ver"])
+        if contract.operation == _GCC_RANGE_PROBE_OPERATION:
+            range_fields = StandingRange(
+                after=contract.params["after"], before=contract.params["before"],
+                offset=contract.params["offset"], top=contract.params["top"])
+            canonical = gcc_progress_range_contract(
+                range_fields, app_version=contract.params["app_ver"], exploratory=True)
+        else:
+            canonical = gcc_progress_contract(app_version=contract.params["app_ver"])
     elif (contract.route.startswith("leaderboard/") and
           contract.route.endswith("/scores/crewmembers") and contract.request_type == 5 and
           contract.operation == "Fetches event crew-member standings"):
@@ -375,5 +413,5 @@ def prepare_read_contract(
 
 __all__ = [
     "ReadContract", "ReadContractError", "StandingRange",
-    "own_crew_contract", "crew_members_contract", "GCC_METADATA_DEFAULT_PREFIX", "gcc_progress_contract", "showdown_standings_contract", "event_standings_contract", "event_crew_standings_contract", "showdown_leagues_score_contract", "prepare_read_contract",
+    "own_crew_contract", "crew_members_contract", "GCC_METADATA_DEFAULT_PREFIX", "gcc_progress_contract", "gcc_progress_range_contract", "showdown_standings_contract", "event_standings_contract", "event_crew_standings_contract", "showdown_leagues_score_contract", "prepare_read_contract",
 ]

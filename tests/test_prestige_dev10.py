@@ -190,7 +190,10 @@ def test_combined_live_harness_routes_prestige_via_distinct_cup_source(monkeypat
     report = probe.run_live(
         "SYNTHETIC_TEST_PLAYER", metadata_product_version="6.8.0",
         metadata_factory=Metadata, asset_cdn_factory=AssetCDN, services_factory=Services,
-        prestige_current=True, auto_crew=False)
+        prestige_current=True, auto_crew=False,
+        # Pinned to the fixture's own window. Without this the run reads the
+        # real clock and the test expires when that window elapses.
+        at=NOW)
     assert report["checks"]["prestige_discovery"]["status"] == "ok"
     assert report["checks"]["prestige_discovery"]["cup_series_entries"] == 1
     assert report["checks"]["prestige_cup"] == {"status": "ok", "records": 2}

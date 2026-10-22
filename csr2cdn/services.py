@@ -21,7 +21,7 @@ from csr2cdn._service_auth import (
 )
 from csr2cdn._service_reads import (
     ReadContract, ReadContractError, StandingRange, _identifier,
-    own_crew_contract, crew_members_contract, gcc_progress_contract, event_standings_contract, event_crew_standings_contract,
+    own_crew_contract, crew_members_contract, gcc_progress_contract, gcc_progress_range_contract, event_standings_contract, event_crew_standings_contract,
     prepare_read_contract, showdown_standings_contract, showdown_leagues_score_contract,
 )
 from csr2cdn.service_events import EventCatalog, EventResolutionError
@@ -290,6 +290,35 @@ class CSR2Services:
         """
         return self._read(self.prepare_gcc_progress())
 
+    def prepare_gcc_progress_range(self, ranges: StandingRange, *,
+                                   exploratory: bool = False) -> ReadContract:
+        """Prepare an unverified, bounded GCC range without I/O.
+
+        The published default `prepare_gcc_progress` remains unchanged.
+        Native generic range serialization is known; expanded GCC server
+        behavior (including offset) is not. No automatic paging is provided.
+        """
+        return gcc_progress_range_contract(ranges, app_version=self.app_version,
+                                           exploratory=exploratory)
+
+    def get_gcc_progress_range_response(self, ranges: StandingRange, *,
+                                        exploratory: bool = False) -> Any:
+        """One experimental read from the established GCC route, opt-in only."""
+        return self._read(self.prepare_gcc_progress_range(
+            ranges, exploratory=exploratory))
+
+    def get_gcc_progress_range(self, ranges: StandingRange, *,
+                               exploratory: bool = False):
+        """Decode one opt-in GCC progress range into typed crew standings.
+
+        The server's treatment of non-common ranges and offsets is not yet
+        validated. This method does not page, cache or claim completeness.
+        """
+        from .service_models import GCCProgressCrewScores
+        response = self.get_gcc_progress_range_response(
+            ranges, exploratory=exploratory)
+        return GCCProgressCrewScores.from_response(response)
+
     def get_crew_rp_snapshot(self, *, expected_member_count: Optional[int] = None,
                              previous=None, season_marker: Optional[str] = None,
                              now_utc: Optional[datetime] = None,
@@ -354,6 +383,20 @@ class CSR2Services:
             show_gcc_metadata=show_gcc_metadata,
             member_read_utc=member_read_at, gcc_read_utc=gcc_read_at,
         )
+
+    def get_crew_optional_snapshot(self):
+        """Opt-in optional crew/member/vehicle details from exactly two reads.
+
+        This does not request GCC or any car-specific endpoint. All optional
+        field values are unverified, and ordinary repr excludes member IDs.
+        Live access still requires the service's allow_network=True guard.
+        """
+        from .crew_optional_data import CrewOptionalSnapshot
+        own = self.get_my_crew(refresh=True)
+        if not own.crew_uid:
+            raise ReadContractError("account has no resolved crew membership")
+        roster = self.get_crew_members(crew_uid=own.crew_uid)
+        return CrewOptionalSnapshot.from_reads(own, roster)
 
     def get_crew_members(self, crew_uid: Optional[str] = None, *, refresh_crew: bool = False) -> CrewMembers:
         """Get own crew members by default; optional ID selects a known crew.

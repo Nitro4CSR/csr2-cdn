@@ -74,7 +74,7 @@ def test_metadata_discovery_selects_exactly_one(monkeypatch):
     seen = {}
     def fake_discovery(client, *, player_id, product_version):
         seen["product_version"] = product_version
-        return SimpleNamespace(list_showdowns=lambda: [SimpleNamespace(time_status="scheduled_now", requestable=True, leaderboard_name="PRIVATE_BOARD")])
+        return SimpleNamespace(list_showdowns=lambda **_kw: [SimpleNamespace(time_status="scheduled_now", requestable=True, leaderboard_name="PRIVATE_BOARD")])
     monkeypatch.setattr(probe.ShowdownDiscovery, "from_metadata", fake_discovery)
     result = probe.run_live(
         "PRIVATE_PLAYER_ID", metadata_factory=FakeMetadata,
@@ -90,7 +90,7 @@ def test_metadata_override_does_not_resolve_version(monkeypatch):
     seen = {}
     def fake_discovery(client, *, player_id, product_version):
         seen["product_version"] = product_version
-        return SimpleNamespace(list_showdowns=lambda: [])
+        return SimpleNamespace(list_showdowns=lambda **_kw: [])
     monkeypatch.setattr(probe.ShowdownDiscovery, "from_metadata", fake_discovery)
     r = probe.run_live("PRIVATE_PLAYER_ID", metadata_product_version="6.8.42",
                        product_version_resolver=lambda *args: (_ for _ in ()).throw(AssertionError("unexpected")),
@@ -102,7 +102,7 @@ def test_metadata_override_does_not_resolve_version(monkeypatch):
 
 def test_metadata_ambiguity_does_not_auto_select(monkeypatch):
     monkeypatch.setattr(probe.ShowdownDiscovery, "from_metadata", lambda *a, **k:
-                        SimpleNamespace(list_showdowns=lambda: [
+                        SimpleNamespace(list_showdowns=lambda **_kw: [
                             SimpleNamespace(time_status="scheduled_now", requestable=True, leaderboard_name="ONE"),
                             SimpleNamespace(time_status="scheduled_now", requestable=True, leaderboard_name="TWO")]))
     r = probe.run_live("PRIVATE_PLAYER_ID", metadata_factory=FakeMetadata,
@@ -151,7 +151,7 @@ def test_live_runner_rejects_noninteractive_terminal(monkeypatch, capsys):
 
 def test_select_one_live_discovered_board_by_index(monkeypatch):
     monkeypatch.setattr(probe.ShowdownDiscovery, "from_metadata", lambda *a, **k:
-                        SimpleNamespace(list_showdowns=lambda: [
+                        SimpleNamespace(list_showdowns=lambda **_kw: [
                             SimpleNamespace(event_id="B", time_status="scheduled_now", requestable=True, leaderboard_name="SECOND"),
                             SimpleNamespace(event_id="A", time_status="scheduled_now", requestable=True, leaderboard_name="FIRST")]))
     class SelectedServices(FakeServices):
