@@ -3,9 +3,11 @@
 ## 0.7.2
 
 Season arithmetic, cup and reward metadata, new crew-service reads, and a fix that made error
-replies look like successes. The Collections Tournament, the release's main goal, is identified
-and its race boards are verified live; package support for it is not built yet. Content database now `product_version` 6.9.0; the app
-release and `MinimumSupportedVersion` are still 6.8.0, and the services accept both.
+replies look like successes. The headline is the Collections Tournament, the release's main
+goal: its board ids, configuration and crew-versus-crew standings are now built and verified
+live against all six race boards of tournament 279 (see the dedicated section below). Content
+database now `product_version` 6.9.0; the app release and `MinimumSupportedVersion` are still
+6.8.0, and the services accept both.
 
 ### New
 
