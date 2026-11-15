@@ -76,9 +76,24 @@ from csr2cdn.services import CSR2Services, ServiceNetworkDisabled, ServiceHTTPEr
 from csr2cdn.service_events import EventCatalog, EventLeaderboard, EventResolutionError
 from csr2cdn.service_discovery import ShowdownDiscovery, ShowdownCandidate, scan_showdowns, merge_modular_showdown_groups, modular_event_assets
 from csr2cdn.service_models import (
-    OwnCrew, CrewCar, CrewMember, CrewMembers, GCCCrewStanding, GCCCrewStandings,
+    OwnCrew,
+    CrewCar, CrewMember, CrewMembers, GCCCrewStanding, GCCCrewStandings,
     LeaderboardEntry, LeaderboardPage, LeaderboardScore, ServiceResponseError,
     GCCProgressCrewScore, GCCProgressCrewScores,
+)
+from csr2cdn.crew_service_reads import (
+    CrewEventProgress, CrewRankEntry, CrewRankings,
+    CrewMilestone, CrewPerks,
+    Wildcard, CrewWildcardStatus, WILDCARD_STATES,
+)
+from csr2cdn.season_pass import SeasonPass, SeasonPassTask, TASK_STATES
+from csr2cdn.collections_blob import CollectionsBlob, PurchasedWithCredits
+from csr2cdn.grand_tour import GrandTourSeason, GrandTourSegment, StudioPack
+from csr2cdn.collections_tournament import (
+    TournamentConfig, TournamentRace, board_id, parse_board_id,
+    standard_board_ids, current_tournament, TournamentError,
+    MemberRaceTime, TournamentMemberResult, TournamentCrewResult,
+    CollectionsTournamentStandings,
 )
 from csr2cdn.crew_optional_data import (CrewOptionalSnapshot, CrewOptionalStats, CrewMemberOptionalStats, CrewMemberVehicle, CrewVehicleGacha, CrewVehicleAppearance, CrewVehicleVisuals, CrewVisualSelection, InteriorDisplayName, CrewEmblem, CrewPresentation, CrewTournamentShape,
                                       CrewTournament, CrewTournamentEvent, CrewTournamentRival,
@@ -88,6 +103,23 @@ from csr2cdn.customization_evidence import (CosmeticCandidateCatalog, CosmeticCa
     inspect_customization_apk, cosmetic_coverage_report)
 from csr2cdn.game_labels import (CarNameStyle, GameCarTranslations, GameCarName, CarDisplayName, GameVisualLibrary, VisualCodeName, game_label_report, metadata_library_inventory)
 from csr2cdn.native_game_sources import (TranslationLayout, VisualJsonLayout, decode_translation_flatbuffer, decode_visual_metadata_cache, inspect_metadata_cache, load_translation_source, load_visual_source, SourceSchemaError)
+from csr2cdn.reward_types import (RewardType, RewardTypeVocabulary,
+                                  SUSPECT_TITLE_BAND, PAYOUT_ATTRIBUTES)
+from csr2cdn.crew_season_schedule import (GrandCrewChampionshipSchedule,
+                                          server_now_from_gcc)
+from csr2cdn.seasonal_reward_cars import (SeasonalRewardCar, SeasonalRewardCarIndex,
+                                          resolve_seasonal_reward_car,
+                                          from_season_bundle, season_bundle_code,
+                                          load_season_reward_cars,
+                                          decode_season_bundle,
+                                          active_prestige_cup_car,
+                                          SeasonBundleError)
+from csr2cdn.event_milestones import (EventMilestoneCatalogue, MilestoneContainer,
+                                      RewardLadder, LadderRung,
+                                      threshold_ladder, TUNER_CUP,
+                                      COLLECTIONS_CUP_CONTAINERS)
+from csr2cdn.collections_cups import (CollectionsCup, CollectionsCupCalendar, CupRace,
+                                      Restriction, RESTRICTION_KINDS)
 from csr2cdn.car_body_parts import (BODY_PART_SLOTS, VARIANT_SLOTS, RETIRED_SLOTS, BodyPartSelection,
                                     CarBodyPartInventory, bodykit_asset_code,
                                     part_asset_code, resolve_body_parts)
@@ -110,7 +142,7 @@ from csr2cdn.snapshots import (
     SnapshotNotFoundError,
 )
 
-__version__ = "0.7.1"
+__version__ = "0.7.2"
 
 __all__ = [
     "CSR2Services", "ServiceNetworkDisabled", "ServiceHTTPError",
@@ -127,6 +159,26 @@ __all__ = [
     "resolve_vehicle_report", "CosmeticCandidateCatalog", "CosmeticCandidate",
     "CarNameStyle", "GameCarTranslations", "GameCarName", "CarDisplayName", "GameVisualLibrary", "VisualCodeName", "game_label_report", "metadata_library_inventory",
     "TranslationLayout", "VisualJsonLayout", "decode_translation_flatbuffer", "decode_visual_metadata_cache", "inspect_metadata_cache", "load_translation_source", "load_visual_source", "SourceSchemaError",
+    "RewardType", "RewardTypeVocabulary", "SUSPECT_TITLE_BAND", "PAYOUT_ATTRIBUTES",
+    "GrandCrewChampionshipSchedule", "server_now_from_gcc",
+    "SeasonalRewardCar", "SeasonalRewardCarIndex",
+    "resolve_seasonal_reward_car", "from_season_bundle", "season_bundle_code",
+    "load_season_reward_cars", "decode_season_bundle",
+    "active_prestige_cup_car", "SeasonBundleError",
+    "EventMilestoneCatalogue", "MilestoneContainer", "RewardLadder", "LadderRung",
+    "threshold_ladder",
+    "TUNER_CUP", "COLLECTIONS_CUP_CONTAINERS", "CollectionsCup",
+    "CollectionsCupCalendar", "CupRace", "Restriction", "RESTRICTION_KINDS",
+    "CrewEventProgress", "CrewRankEntry", "CrewRankings",
+    "CrewMilestone", "CrewPerks",
+    "Wildcard", "CrewWildcardStatus", "WILDCARD_STATES",
+    "SeasonPass", "SeasonPassTask", "TASK_STATES",
+    "CollectionsBlob", "PurchasedWithCredits",
+    "GrandTourSeason", "GrandTourSegment", "StudioPack",
+    "TournamentConfig", "TournamentRace", "board_id", "parse_board_id",
+    "standard_board_ids", "current_tournament", "TournamentError",
+    "MemberRaceTime", "TournamentMemberResult", "TournamentCrewResult",
+    "CollectionsTournamentStandings",
     "BODY_PART_SLOTS", "VARIANT_SLOTS", "RETIRED_SLOTS", "BodyPartSelection", "CarBodyPartInventory",
     "bodykit_asset_code", "part_asset_code", "resolve_body_parts",
     "decode_localisation_unityfs", "load_localisation_unityfs", "LocalisationSourceError",

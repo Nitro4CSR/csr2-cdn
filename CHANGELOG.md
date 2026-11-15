@@ -1,5 +1,109 @@
 # Changelog
 
+## 0.7.2
+
+Season arithmetic, cup and reward metadata, new crew-service reads, and a fix that made error
+replies look like successes. The Collections Tournament, the release's main goal, is identified
+and its race boards are verified live; package support for it is not built yet. Content database now `product_version` 6.9.0; the app
+release and `MinimumSupportedVersion` are still 6.8.0, and the services accept both.
+
+### New
+
+- **Active season, computed.** `csr2cdn.crew_season_schedule` derives the Grand Crew
+  Championship season from `GrandCrewChampionshipManagerConfig`; it matched the live
+  `gccProgress` end time to the second.
+- **The current Prestige Cup car**, from the season-numbered `assets_client_metadata_<N>`
+  bundle: `csr2cdn.seasonal_reward_cars.active_prestige_cup_car`.
+- **Reward vocabulary** (`csr2cdn.reward_types`) and **milestone ladders**
+  (`csr2cdn.event_milestones`), including the Tuner Cup's 32 rungs to 900.
+- **Collections cup calendar** (`csr2cdn.collections_cups`): windows, races, restrictions
+  and rewards for 104 cups.
+- **Crew-service reads, verified live:** `crews/checkCrewPerks` (nine milestone families with
+  crew totals and next targets), `wildcards/status` (the plural route, which is the default;
+  the singular is not JSON), and `events/crewEventProgress` (contract accepted; no id pairing
+  has yet returned a non-zero figure).
+- **Showdown board ledger.** `ShowdownBoardLedger`, opt-in on `ShowdownDiscovery`, remembers
+  every board discovery resolved. When the server rolls its modular event catalogue forward,
+  showdowns that already started leave it while they keep running for days; without the
+  ledger, discovery reports no current showdown.
+- Showdown and leaderboard rows now carry `races` and `license_level`. Event showdowns send
+  `Monadic::Nothing` for `races`, which reads as None.
+
+### Account-state reads, verified live 2026-11-15
+
+A route survey tried every untried read-only route once. Three returned useful
+data and are now modelled:
+
+- **`season_pass/season_pass_info`** (`csr2cdn.season_pass.SeasonPass`) — the
+  current season, pass points, premium flags, RP boost, the eligible/claimed
+  reward tags, and per-task progress (`SeasonPassTask`, with Locked/Unlocked/
+  Complete states).
+- **`collections/get_collections_blob_data`**
+  (`csr2cdn.collections_blob.CollectionsBlob`) — the Car Credits balance, the
+  cars bought with credits (with purchase timestamps), and the ids of events
+  played. More than the credits balance expected earlier.
+- **`leaderboard/rp-earned/view`** — the weekly RP-earned board, read with
+  `CSR2Services.get_weekly_leaderboard` and decoded by the existing
+  `LeaderboardPage`.
+- **`grand_tour/get_season_details`** (`csr2cdn.grand_tour.GrandTourSeason`) —
+  the Grand Tour shard wallet, universal cards, and per-segment state (status,
+  window, claimed cards, studio-pack next-purchase times). Its request nests
+  the schedule id under an `extra` object, resolved from disassembly; the
+  server returns the player's own segment.
+
+`users/getAccountBlob` answers with the account wallet and A/B branch but is
+deliberately not included. Other routes surveyed and left out: social reads (`crews/showFriends*`,
+`leaderboard/{0}/scores/friends`, `notification/crew`) return "not linked"
+error codes; `grants/*` (reward inbox), `unified_feature/blob`,
+`convenience_pack/get_daily_rewards` and `showdown_leagues/*_status` are empty
+or inactive for this account; `segmented_leaderboards/get_score` answers but its id is the Grand Tour pack
+leaderboard (`{leaderboardId}_{periodNumber}_{packIndex}_{rewardId}`) and no
+segmented board was active to validate against; anti-cheat and all write routes are out of scope.
+
+### The Collections Tournament (`csr2cdn.collections_tournament`)
+
+The crew-against-crew tournament: three crews per group, three days of two time trials,
+every fourteen days on `TOURNAMENT_SEASONAL`. It is the `tournament` block of
+`crews/checkUserCrew` (decoded since 0.7.1 by `crew_optional_data.CrewTournament`), the
+client's `TournamentCrewData` -- not the Grand Crew Championship, as earlier 0.7.2 drafts said.
+
+- **Board ids** are composed exactly as the client builds them (from disassembly of
+  `TournamentLeaderboardRequestBase.GetLeaderboardId`):
+  `csr2-collections-tournament---{tournamentId}-{groupId}-{dayId}_{raceId}`. `board_id`,
+  `parse_board_id` and `standard_board_ids` (the six-race grid without the per-event config).
+- **Configuration** decodes from the `TournamentConfig` block or an
+  `assets_client_metadata_tournament_<id>` bundle: `TournamentConfig`/`TournamentRace` give
+  each race's restriction, cooldown, retries, multipliers and underlying event id.
+- **Standings**: `leaderboard/{board}/top` (request type 5, `extra: true`) returns per-member
+  best times (`score`, ms) and attempts (`races`). `CollectionsTournamentStandings.from_boards`
+  folds the six boards into `TournamentMemberResult` and `TournamentCrewResult` -- per-member
+  best time per race, summed best time, attempts, and crew aggregates.
+- **Service helpers**: `get_tournament_race`, `get_tournament_standings`, and
+  `get_current_tournament_standings` (resolves the live tournament and group from own-crew).
+  Verified live on all six boards of tournament 279 (three crews, 39 members).
+- Trophies and the exact crew rank are not computed: the client derives them from these
+  boards (`CrewRaceResult`), and that rule is not recovered, so standings report best times
+  and attempts rather than an invented trophy total.
+
+### Fixed
+
+- **Error replies were read as successes.** `_service_rejected` checked only `errorCode`;
+  live replies spell it `error_code`, so an `error_code: 403` envelope passed every decoder.
+  The crewless `error_code: 306` answer is still recognised as "no crew".
+- `WinsRequired` most likely does not always count wins: the collections cup ladders and the
+  Tuner Cup top out at race counts. Docstrings say so as an inference; the wire key is
+  unchanged.
+
+### Not usable / unconfirmed
+
+- `crews/showCrewsRanks` answers HTTP 500 to every request shape tried (13).
+- The weekly `COLLECTIONS_CUP_V2` ladders have no server-side progress or standings: watched
+  through W2 of season 279, no service read moved. Their progress lives in the player's save
+  profile, which the package does not download.
+- Removed before release: `csr2cdn.cup_standings`, `CollectionsCupCrewStanding` and
+  `OwnCrew.cup_standing`/`crew_leaderboard_type`, which modelled a board id and a field that
+  turned out not to exist.
+
 ## 0.7.1
 
 Crew reads, cosmetic resolution and leaderboard fields, validated against the live service

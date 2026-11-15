@@ -29,12 +29,22 @@ def _mapping(data: Any) -> Mapping[str, Any]:
 
 
 def _service_rejected(node: Mapping[str, Any]) -> bool:
-    # The native response base has `isValid`, `clientOutOfDate`, `errorCode`
-    # and `errorString` in addition to common HTTP/JSON envelope fields.
+    """True when the envelope reports a failure rather than a result.
+
+    The native response base has `isValid`, `clientOutOfDate`, `errorCode`
+    and `errorString` in addition to common HTTP/JSON envelope fields.
+
+    `error_code` is checked as well as `errorCode`: live 6.8.0 replies use the
+    snake_case spelling, and until this was added an error envelope -- for
+    example the `error_code: 403` a closed cup leaderboard answers with --
+    passed through every decoder in this module as a successful result.
+    """
+    for name in ("errorCode", "error_code"):
+        if node.get(name) not in (None, "", 0, "0"):
+            return True
     return (node.get("success") is False or node.get("isValid") is False or
             node.get("clientOutOfDate") is True or bool(node.get("error")) or
-            bool(node.get("errors")) or bool(node.get("errorString")) or
-            node.get("errorCode") not in (None, "", 0, "0"))
+            bool(node.get("errors")) or bool(node.get("errorString")))
 
 
 def _payload(data: Any) -> Mapping[str, Any]:
@@ -99,6 +109,11 @@ class OwnCrew:
     `crew_uid=None` means no returned active crew identifier. Live success
     and negative/no-membership envelope semantics remain to be validated.
     Opaque reply fields are stored only in memory and excluded from repr.
+
+    The live reply's ``tournament`` key is the Collections Tournament crew
+    data (the client's `CheckUserCrewResponse.TournamentCrewData`); decode it
+    with `csr2cdn.crew_optional_data.CrewTournament`. `crewLeaderboardType`,
+    also declared by the client, has not been seen on the wire.
     """
     crew_uid: Optional[str]
     name: Optional[str] = None
@@ -130,6 +145,12 @@ class OwnCrew:
 
     @classmethod
     def from_response(cls, response: Any) -> "OwnCrew":
+        # The crewless answer is an error envelope (error_code 306). It has to
+        # be recognized before the generic envelope check, which now rejects a
+        # snake_case error_code, or a crewless account would raise instead of
+        # reporting no membership.
+        if isinstance(response, Mapping) and cls._is_no_crew(response):
+            return cls(None, extras=dict(response))
         node = _payload(response)
         # A crewless account is answered with an error envelope, not an empty
         # membership record. Verified live against 6.8.0 on 2026-10-21:
@@ -763,6 +784,13 @@ class LeaderboardEntry:
     #: as sent so a future payload is visible rather than silently dropped.
     sp_boost_data: Mapping[str, Any] = field(default_factory=dict, repr=False,
                                              compare=False)
+    # Appended in 0.7.2, from live boards (2026-11-15).
+    #: Races counted toward this row. Event showdown boards send the
+    #: ``Monadic::Nothing`` sentinel here on every row, which reads as None;
+    #: a number is kept when a board sends one.
+    races: Optional[int] = None
+    #: The player's licence level as the board records it.
+    license_level: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -810,6 +838,8 @@ class LeaderboardPage:
                 multiplier=_optional_str(raw, "multiplier"),
                 sp_boost_data=(dict(raw["sp_boost_data"])
                                if isinstance(raw.get("sp_boost_data"), Mapping) else {}),
+                races=_int(raw, "races"),
+                license_level=_int(raw, "license_level", "licenseLevel"),
             ))
         player = _field(node, "player", "currentPlayer", "myRank")
         if not isinstance(player, Mapping):

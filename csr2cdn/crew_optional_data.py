@@ -172,7 +172,7 @@ class CrewTournamentRival:
 
 @dataclass(frozen=True)
 class CrewTournamentEvent:
-    """One crew-tournament event.
+    """One Collections Tournament event, keyed by tournament id.
 
     ``members`` holds the participating players' in-game IDs. It is kept out of
     repr only because thirty strings make a repr unreadable, not for privacy;
@@ -222,7 +222,17 @@ class CrewTournamentEvent:
 
 @dataclass(frozen=True)
 class CrewTournament:
-    """Decoded own-crew tournament tree.
+    """Decoded own-crew tournament tree: the Collections Tournament.
+
+    Identified from the 6.8.0 client: `CheckUserCrewResponse.TournamentCrewData`
+    is this block, parsed by `CollectionsTournamentCrewData.FromJson`
+    (``events``/``meta``), and each event by
+    `CollectionsTournamentCrewEventData.FromJson` (``crews``/``hash``/
+    ``members``/``vanity_reward``). It is the crew-against-crew tournament run
+    on the ``TOURNAMENT_SEASONAL`` schedule (three days every fourteen), not
+    the Grand Crew Championship. Event ids are tournament ids, ``hash`` is the
+    group id, and a closed event's reward tier is the crew's final placing
+    (tournament 279 closed with tier 2 for a crew that finished second).
 
     Complements, and does not replace, ``CrewTournamentShape``, which stays
     the presence-only view carried on ``CrewPresentation`` and printed in

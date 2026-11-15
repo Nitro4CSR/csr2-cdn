@@ -20,13 +20,27 @@ from csr2cdn._service_auth import (
     prepare_portal_request,
 )
 from csr2cdn._service_reads import (
-    ReadContract, ReadContractError, StandingRange, _identifier,
+    ReadContract, ReadContractError, StandingRange, WILDCARD_ROUTES, _identifier,
     own_crew_contract, crew_members_contract, gcc_progress_contract, gcc_progress_range_contract, event_standings_contract, event_crew_standings_contract,
     prepare_read_contract, showdown_standings_contract, showdown_leagues_score_contract,
+    crew_event_progress_contract, crew_rankings_contract,
+    wildcard_status_contract, crew_perks_contract,
+    season_pass_contract, collections_blob_contract, grand_tour_contract,
+    weekly_leaderboard_contract, WEEKLY_LEADERBOARDS, tournament_race_contract,
 )
 from csr2cdn.service_events import EventCatalog, EventResolutionError
 from csr2cdn.service_discovery import ShowdownDiscovery
 from csr2cdn.service_models import OwnCrew, CrewMembers, LeaderboardPage, LeaderboardScore, ServiceResponseError
+from csr2cdn.crew_service_reads import (
+    CrewEventProgress, CrewPerks, CrewRankings, CrewWildcardStatus,
+)
+from csr2cdn.season_pass import SeasonPass
+from csr2cdn.collections_blob import CollectionsBlob
+from csr2cdn.grand_tour import GrandTourSeason
+from csr2cdn.collections_tournament import (
+    CollectionsTournamentStandings, TournamentConfig, current_tournament,
+    standard_board_ids,
+)
 from csr2cdn.errors import Csr2CdnError
 
 
@@ -673,6 +687,218 @@ class CSR2Services:
                                     ranges: Optional[StandingRange] = None) -> LeaderboardPage:
         contract = self.prepare_showdown_leagues_preview(leaderboard_name, score=score, ranges=ranges)
         return self.decode_leaderboard(leaderboard_name, self._read(contract))
+
+    # ------------------------------------------------------------------
+    # 0.7.2 crew-service reads. Each `prepare_*` is offline, as elsewhere in
+    # this class; the matching `get_*` is the explicit opt-in that reads.
+    #
+    # None of these five routes has yet been answered by a live server. Their
+    # request keys follow the spellings compiled into 6.8.0 and their decoders
+    # try several candidate response spellings, because `CheckUserCrewResponse`
+    # already demonstrates that a declared field name and the wire key can
+    # disagree. Treat a `None` attribute as "not in this reply".
+
+    def _resolved_crew_uid(self, crew_uid: Optional[str]) -> str:
+        if crew_uid is not None:
+            return crew_uid
+        resolved = self._own_crew.crew_uid if self._own_crew else None
+        if not resolved:
+            raise ReadContractError("crew is not resolved; use get_my_crew() or pass crew_uid")
+        return resolved
+
+    def prepare_crew_event_progress(self, event_id: str, series_id: str, *,
+                                    crew_uid: Optional[str] = None) -> ReadContract:
+        """Offline `events/crewEventProgress` request.
+
+        `event_id` and `series_id` are not derivable from anything this package
+        downloads; supply them from the event metadata.
+        """
+        return crew_event_progress_contract(self._resolved_crew_uid(crew_uid),
+                                            event_id, series_id,
+                                            app_version=self.app_version)
+
+    @staticmethod
+    def decode_crew_event_progress(response: Any) -> CrewEventProgress:
+        return CrewEventProgress.from_response(response)
+
+    def get_crew_event_progress(self, event_id: str, series_id: str, *,
+                                crew_uid: Optional[str] = None) -> CrewEventProgress:
+        """Crew-aggregate progress for one event series.
+
+        The figure covers the whole crew. No per-member breakdown exists on
+        this route, whatever the event's reward ladder is keyed on.
+        """
+        return self.decode_crew_event_progress(self._read(
+            self.prepare_crew_event_progress(event_id, series_id, crew_uid=crew_uid)))
+
+    def prepare_crew_rankings(self, *, top: int = 10, before: int = 5, after: int = 5,
+                              crew_uid: Optional[str] = None) -> ReadContract:
+        """Offline `crews/showCrewsRanks` request; no offset, by native design."""
+        return crew_rankings_contract(self._resolved_crew_uid(crew_uid),
+                                       top=top, before=before, after=after,
+                                       app_version=self.app_version)
+
+    @staticmethod
+    def decode_crew_rankings(response: Any) -> CrewRankings:
+        return CrewRankings.from_response(response)
+
+    def get_crew_rankings(self, *, top: int = 10, before: int = 5, after: int = 5,
+                          crew_uid: Optional[str] = None) -> CrewRankings:
+        """The crew's leaderboard standing plus its immediate neighbours."""
+        return self.decode_crew_rankings(self._read(self.prepare_crew_rankings(
+            top=top, before=before, after=after, crew_uid=crew_uid)))
+
+    def prepare_wildcard_status(self, *, route: str = WILDCARD_ROUTES[0]) -> ReadContract:
+        """Offline wildcard status request.
+
+        Both `wildcards/status` and `wildcard/status` are compiled into 6.8.0;
+        live, only the plural (the default) answers with JSON.
+        """
+        return wildcard_status_contract(route=route, app_version=self.app_version)
+
+    @staticmethod
+    def decode_wildcard_status(response: Any) -> CrewWildcardStatus:
+        return CrewWildcardStatus.from_response(response)
+
+    def get_wildcard_status(self, *, route: str = WILDCARD_ROUTES[0]) -> CrewWildcardStatus:
+        """Crew wildcard season state. Reads only; never donates or activates."""
+        return self.decode_wildcard_status(self._read(
+            self.prepare_wildcard_status(route=route)))
+
+    def prepare_crew_perks(self, crew_uid: Optional[str] = None) -> ReadContract:
+        """Offline `crews/checkCrewPerks` request."""
+        return crew_perks_contract(self._resolved_crew_uid(crew_uid),
+                                    app_version=self.app_version)
+
+    @staticmethod
+    def decode_crew_perks(response: Any) -> CrewPerks:
+        return CrewPerks.from_response(response)
+
+    def get_crew_perks(self, crew_uid: Optional[str] = None) -> CrewPerks:
+        """Crew perk milestones and unlocks. Reads only; never picks perks."""
+        return self.decode_crew_perks(self._read(self.prepare_crew_perks(crew_uid)))
+
+    # ------------------------------------------------------------------
+    # 0.7.2 account-state reads, verified live 2026-11-15. Each reads the
+    # authenticated player's own server-side state; none writes.
+
+    def prepare_season_pass(self) -> ReadContract:
+        """Offline `season_pass/season_pass_info` request."""
+        return season_pass_contract(app_version=self.app_version)
+
+    @staticmethod
+    def decode_season_pass(response: Any) -> SeasonPass:
+        return SeasonPass.from_response(response)
+
+    def get_season_pass(self) -> SeasonPass:
+        """Season, points, reward state and per-task progress."""
+        return self.decode_season_pass(self._read(self.prepare_season_pass()))
+
+    def prepare_collections_blob(self) -> ReadContract:
+        """Offline `collections/get_collections_blob_data` request."""
+        return collections_blob_contract(app_version=self.app_version)
+
+    @staticmethod
+    def decode_collections_blob(response: Any) -> CollectionsBlob:
+        return CollectionsBlob.from_response(response)
+
+    def get_collections_blob(self) -> CollectionsBlob:
+        """The Car Credits wallet and cars bought with credits."""
+        return self.decode_collections_blob(self._read(self.prepare_collections_blob()))
+
+    def prepare_weekly_leaderboard(self, board: str = "rp-earned",
+                                   ranges: Optional[StandingRange] = None) -> ReadContract:
+        """Offline weekly-leaderboard request, e.g. `rp-earned`."""
+        return weekly_leaderboard_contract(board, ranges or StandingRange.common(),
+                                           app_version=self.app_version)
+
+    @staticmethod
+    def decode_weekly_leaderboard(board: str, response: Any) -> LeaderboardPage:
+        return LeaderboardPage.from_response(board, response)
+
+    def get_weekly_leaderboard(self, board: str = "rp-earned",
+                               ranges: Optional[StandingRange] = None) -> LeaderboardPage:
+        """A weekly leaderboard page (the RP-earned board by default)."""
+        return self.decode_weekly_leaderboard(
+            board, self._read(self.prepare_weekly_leaderboard(board, ranges)))
+
+    def prepare_grand_tour(self, active_schedule_id: str) -> ReadContract:
+        """Offline `grand_tour/get_season_details` request.
+
+        `active_schedule_id` is a live `GRAND_TOUR_SEASON_<n>_SEG_<m>` id from
+        the `EventSchedule` metadata block.
+        """
+        return grand_tour_contract(active_schedule_id, app_version=self.app_version)
+
+    @staticmethod
+    def decode_grand_tour(response: Any) -> GrandTourSeason:
+        return GrandTourSeason.from_response(response)
+
+    def get_grand_tour(self, active_schedule_id: str) -> GrandTourSeason:
+        """Grand Tour season: shards, cards and per-segment state."""
+        return self.decode_grand_tour(self._read(self.prepare_grand_tour(active_schedule_id)))
+
+    # ------------------------------------------------------------------
+    # Collections Tournament (crew vs crew), verified live 2026-11-15.
+
+    def prepare_tournament_race(self, board: str,
+                               ranges: Optional[StandingRange] = None) -> ReadContract:
+        """Offline `leaderboard/{board}/top` request for one tournament race.
+
+        Compose `board` with `csr2cdn.collections_tournament.board_id` or
+        `standard_board_ids`; this method will not invent one.
+        """
+        return tournament_race_contract(board, ranges or StandingRange.common(),
+                                        app_version=self.app_version)
+
+    @staticmethod
+    def decode_tournament_race(board: str, response: Any) -> LeaderboardPage:
+        return LeaderboardPage.from_response(board, response)
+
+    def get_tournament_race(self, board: str,
+                            ranges: Optional[StandingRange] = None) -> LeaderboardPage:
+        """One tournament race board: per-member best times and attempts."""
+        return self.decode_tournament_race(
+            board, self._read(self.prepare_tournament_race(board, ranges)))
+
+    def get_tournament_standings(self, tournament_id: str, group_id: str, *,
+                                 config: Optional[TournamentConfig] = None,
+                                 ranges: Optional[StandingRange] = None,
+                                 debug: bool = False) -> CollectionsTournamentStandings:
+        """Read every race board of a tournament and fold it per crew and member.
+
+        With a `config` the exact races are used; without one the standard
+        three-day, two-race grid is composed. A race board that is closed or
+        refused is skipped, so a single failure does not lose the rest.
+        """
+        if config is not None:
+            board_list = config.board_ids(group_id, debug=debug)
+        else:
+            board_list = standard_board_ids(tournament_id, group_id, debug=debug)
+        replies = []
+        for day_id, race_id, board in board_list:
+            try:
+                reply = self._read(self.prepare_tournament_race(board, ranges))
+            except ServiceHTTPError:
+                continue
+            replies.append((day_id, race_id, reply))
+        return CollectionsTournamentStandings.from_boards(tournament_id, group_id, replies)
+
+    def get_current_tournament_standings(self, *, ranges: Optional[StandingRange] = None,
+                                         refresh: bool = False
+                                         ) -> Optional[CollectionsTournamentStandings]:
+        """Resolve the crew's current tournament from own-crew, then read it.
+
+        Returns ``None`` when the own-crew reply carries no tournament with a
+        group. Does not fetch the per-event config, so the standard race grid
+        is used.
+        """
+        crew = self.get_my_crew(refresh=refresh)
+        resolved = current_tournament(crew.extras.get("tournament"))
+        if resolved is None:
+            return None
+        tournament_id, group_id = resolved
+        return self.get_tournament_standings(tournament_id, group_id, ranges=ranges)
 
 
 __all__ = ["CSR2Services", "ServiceNetworkDisabled", "ServiceHTTPError"]

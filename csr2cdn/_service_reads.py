@@ -314,6 +314,208 @@ def gcc_progress_range_contract(ranges: StandingRange, *, app_version: str = "6.
                         _GCC_RANGE_PROBE_OPERATION)
 
 
+# ---------------------------------------------------------------------------
+# 0.7.2 additions, reconstructed from the 6.8.0 IL2CPP metadata rather than
+# from ARM64 disassembly. Provenance differs from the contracts above and is
+# weaker in one specific way: method *parameter* names are compiled into
+# `global-metadata.dat` and are quoted verbatim below, but they are C#
+# identifiers, not wire keys. Each wire key used here is additionally present
+# as a string literal in the same metadata, and follows the spelling already
+# proven for `crew_uid`/`app_ver`/`top`/`before`/`after`/`offset`. Parameter
+# *order* within the request dictionary is NOT established for these routes.
+# None of these has been answered by a live server.
+
+def crew_event_progress_contract(crew_uid: str, event_id: str, series_id: str, *,
+                                 app_version: str = "6.8.0") -> ReadContract:
+    """Crew-aggregate progress for one event series.
+
+    `PlayerCrewNetwork.FetchCrewEventProgress(crewUID, eventID, seriesID,
+    completionDelegate)` is answered by `FetchCrewEventProgressResponse`,
+    whose single field `crewEventProgress` carries `CrewEventProgress`
+    {isValid, progress, participated}.
+
+    The figure is a crew total. The client submits each race individually via
+    `RaceInCrewEventRaceTransaction` {m_Reason, m_event_id, m_series_id,
+    m_is_win, m_race_number, m_race_time}, but the server publishes no
+    per-member breakdown on this route.
+
+    Request type 4 is the `EWebRequestType.Events` ordinal, inferred from the
+    enum's declaration order and the `events/` route prefix; it is carried for
+    documentation only and nothing dispatches on it.
+    """
+    return ReadContract(
+        "events/crewEventProgress",
+        OrderedDict([("crew_uid", _identifier(crew_uid, name="crew_uid")),
+                     ("event_id", _identifier(event_id, name="event_id")),
+                     ("series_id", _identifier(series_id, name="series_id")),
+                     ("app_ver", _version(app_version))]),
+        4, "Fetches crew event progress")
+
+
+def crew_rankings_contract(crew_uid: str, *, top: int, before: int, after: int,
+                           app_version: str = "6.8.0") -> ReadContract:
+    """Crew leaderboard standing with its immediate neighbours.
+
+    `PlayerCrewNetwork.FetchCrewRankings(crewUID, top, before, after,
+    completionDelegate)` is answered by `FetchCrewRankResponse` {crewUID,
+    crewRank, topCrews, crewsJustAbove, crewsJustBelow}.
+
+    Note the native signature takes no `offset`, so `StandingRange` does not
+    apply: it always serializes one. The three selectors are bounded here to
+    keep a single read from turning into a crawl.
+
+    **Live status: HTTP 500.** Tried on 2026-11-06 in five shapes -- as built
+    here, with an added `offset`, with only `crew_uid`/`app_ver`, without
+    `crew_uid`, and with the keys reordered. All five returned 500, so the
+    failure is not about these keys. `PlayerCrewNetwork` carries a
+    `lastCrewLeaderboardNameFetched` field, which suggests the call also wants
+    a leaderboard name that neither the method signature nor the literal table
+    reveals. Until that is found this contract is not usable.
+    """
+    if not 1 <= _i32(top, name="top") <= 50:
+        raise ReadContractError("top must be 1..50")
+    if not 0 <= _i32(before, name="before") <= 30:
+        raise ReadContractError("before must be 0..30")
+    if not 0 <= _i32(after, name="after") <= 30:
+        raise ReadContractError("after must be 0..30")
+    return ReadContract(
+        "crews/showCrewsRanks",
+        OrderedDict([("crew_uid", _identifier(crew_uid, name="crew_uid")),
+                     ("app_ver", _version(app_version)),
+                     ("top", top), ("before", before), ("after", after)]),
+        3, "Fetches crew rankings")
+
+
+
+
+#: Both spellings exist as string literals in 6.8.0. Live, 2026-11-06: the
+#: plural answers with the wildcard state and the singular with something that
+#: is not JSON, so the plural comes first and is the default.
+WILDCARD_ROUTES = ("wildcards/status", "wildcard/status")
+
+
+def wildcard_status_contract(*, route: str = WILDCARD_ROUTES[0],
+                             app_version: str = "6.8.0") -> ReadContract:
+    """Crew wildcard season state.
+
+    `PlayerCrewNetwork.FetchWildcardStatus(completionDelegate)` takes no
+    inputs beyond the app version, and is answered by
+    `FetchWildcardStatusResponse` {seasonEndTime, token, wildcardDataList,
+    lastmessage_ID}. Each `WildcardData` declares 17 fields including
+    rarity, rpBonus, duration, cost, paid, activated, endTime and zid.
+    """
+    if route not in WILDCARD_ROUTES:
+        raise ReadContractError("route must be one of the two traced wildcard spellings")
+    return ReadContract(route, OrderedDict([("app_ver", _version(app_version))]),
+                        3, "Fetches wildcard status")
+
+
+def crew_perks_contract(crew_uid: str, *, app_version: str = "6.8.0") -> ReadContract:
+    """Crew perk milestones and unlocks.
+
+    `PlayerCrewNetwork.FetchCrewPerks(crewUID, completionDelegate)` feeds
+    `PlayerCrewPerks.FromJSONDict`, whose fields are m_milestoneList,
+    CurrentMilestone, PerkGroupsUnlocked, PerksUnlocked, CrewRespectRank
+    and CrewCash.
+    """
+    return ReadContract(
+        "crews/checkCrewPerks",
+        OrderedDict([("crew_uid", _identifier(crew_uid, name="crew_uid")),
+                     ("app_ver", _version(app_version))]),
+        3, "Fetches crew perks")
+
+
+# ---------------------------------------------------------------------------
+# Account-state reads, verified live 2026-11-15. Each is a read of the
+# authenticated player's own server-side state over prod-web, and takes only
+# the app version. `request_type` is a documentary category and is not used in
+# signing; 1 groups these account/game-state reads, as 3 groups crew and 5
+# leaderboard. None involves a write.
+
+def season_pass_contract(*, app_version: str = "6.8.0") -> ReadContract:
+    """`season_pass/season_pass_info` -> season, points, rewards, tasks."""
+    return ReadContract("season_pass/season_pass_info",
+                        OrderedDict([("app_ver", _version(app_version))]),
+                        1, "Fetches season pass info")
+
+
+def collections_blob_contract(*, app_version: str = "6.8.0") -> ReadContract:
+    """`collections/get_collections_blob_data` -> Car Credits wallet."""
+    return ReadContract("collections/get_collections_blob_data",
+                        OrderedDict([("app_ver", _version(app_version))]),
+                        1, "Fetches the collections blob")
+
+
+#: A Grand Tour schedule id, e.g. ``GRAND_TOUR_SEASON_4_SEG_0``.
+_GRAND_TOUR_SCHEDULE = re.compile(r"GRAND_TOUR_SEASON_\d{1,4}_SEG_\d{1,2}")
+
+
+def grand_tour_contract(active_schedule_id: str, *, app_version: str = "6.8.0") -> ReadContract:
+    """`grand_tour/get_season_details`, with the id nested under `extra`.
+
+    `GrandTourWebRequestBase.TriggerRequest` carries the feature's params in an
+    `extra` object, so the body is
+    ``{"app_ver": ..., "extra": {"activeScheduleId": <id>}}``. `active_schedule_id`
+    is a live `GRAND_TOUR_SEASON_<n>_SEG_<m>` from `EventSchedule`; the server
+    answers with the player's own segment whichever is sent.
+    """
+    if not isinstance(active_schedule_id, str) or not _GRAND_TOUR_SCHEDULE.fullmatch(active_schedule_id):
+        raise ReadContractError("active_schedule_id must be a GRAND_TOUR_SEASON_<n>_SEG_<m> id")
+    return ReadContract("grand_tour/get_season_details",
+                        OrderedDict([("app_ver", _version(app_version)),
+                                     ("extra", {"activeScheduleId": active_schedule_id})]),
+                        1, "Fetches grand tour season details")
+
+
+#: Prefix of a Collections Tournament race board (the triple dash is literal).
+_TOURNAMENT_BOARD = re.compile(
+    r"csr2-collections-tournament(?:-debug)?---[0-9]{1,9}-"
+    r"[0-9]{1,12}(?:_[0-9]{1,12}){1,7}-Day[0-9]{1,2}_Race[0-9]{1,2}")
+
+
+def tournament_race_contract(board: str, ranges: StandingRange, *,
+                             app_version: str = "6.8.0") -> ReadContract:
+    """`leaderboard/{board}/top` for a Collections Tournament race board.
+
+    `board` is composed by `csr2cdn.collections_tournament.board_id` (or
+    `standard_board_ids`); this contract will not invent one. The reply decodes
+    with `service_models.LeaderboardPage` (score = best time ms, races =
+    attempts), request type 5, with `extra: true` as the native builder sets.
+    """
+    if not isinstance(board, str) or not _TOURNAMENT_BOARD.fullmatch(board):
+        raise ReadContractError("not a Collections Tournament race board id")
+    if not isinstance(ranges, StandingRange):
+        raise ReadContractError("ranges must be StandingRange")
+    params = OrderedDict([("app_ver", _version(app_version))])
+    params.update(ranges.as_wire_params())
+    params["extra"] = True
+    return ReadContract(f"leaderboard/{board}/top", params, 5,
+                        "Fetches collections tournament standings")
+
+
+#: The weekly leaderboards reachable with a clean (non-injected) board name.
+#: `rp-earned` is verified live; `cash-earned-` needs an injected id and is not
+#: offered here.
+WEEKLY_LEADERBOARDS = ("rp-earned",)
+
+
+def weekly_leaderboard_contract(board: str, ranges: StandingRange, *,
+                                app_version: str = "6.8.0") -> ReadContract:
+    """`leaderboard/{board}/view` for a weekly board such as `rp-earned`.
+
+    Same board shape as the Showdown reads (request type 5); decode the reply
+    with `service_models.LeaderboardPage`.
+    """
+    if board not in WEEKLY_LEADERBOARDS:
+        raise ReadContractError("unknown weekly leaderboard")
+    if not isinstance(ranges, StandingRange):
+        raise ReadContractError("ranges must be StandingRange")
+    params = OrderedDict([("app_ver", _version(app_version))])
+    params.update(ranges.as_wire_params())
+    return ReadContract(f"leaderboard/{board}/view", params, 5,
+                        "Fetches a weekly leaderboard")
+
+
 def prepare_read_contract(
     credentials: PortalCredentials, contract: ReadContract,
     *, web_api_url: str = "https://prod-web.csr2.zynga.com",
@@ -362,6 +564,32 @@ def prepare_read_contract(
                                offset=contract.params["offset"], top=contract.params.get("top"))
         canonical = event_crew_standings_contract(
             parts[1], ranges, app_version=contract.params["app_ver"])
+    elif (contract.route.startswith("leaderboard/") and contract.request_type == 5
+          and contract.route.endswith("/view")
+          and contract.route.split("/")[1] in WEEKLY_LEADERBOARDS):
+        parts = contract.route.split("/")
+        expected = (("app_ver", "top", "after", "before", "offset")
+                    if "top" in contract.params else ("app_ver", "after", "before", "offset"))
+        if tuple(contract.params) != expected:
+            raise ReadContractError("unexpected weekly leaderboard request fields")
+        ranges = StandingRange(after=contract.params["after"], before=contract.params["before"],
+                               offset=contract.params["offset"], top=contract.params.get("top"))
+        canonical = weekly_leaderboard_contract(parts[1], ranges,
+                                                app_version=contract.params["app_ver"])
+    elif (contract.route.startswith("leaderboard/") and contract.request_type == 5
+          and contract.route.endswith("/top")):
+        parts = contract.route.split("/")
+        if len(parts) != 3:
+            raise ReadContractError("invalid tournament board route")
+        expected = (("app_ver", "top", "after", "before", "offset", "extra")
+                    if "top" in contract.params
+                    else ("app_ver", "after", "before", "offset", "extra"))
+        if tuple(contract.params) != expected:
+            raise ReadContractError("unexpected tournament standings request fields")
+        ranges = StandingRange(after=contract.params["after"], before=contract.params["before"],
+                               offset=contract.params["offset"], top=contract.params.get("top"))
+        canonical = tournament_race_contract(parts[1], ranges,
+                                             app_version=contract.params["app_ver"])
     elif contract.route.startswith("leaderboard/") and contract.request_type == 5 and contract.route.endswith("/score"):
         parts = contract.route.split("/")
         if len(parts) != 3 or tuple(contract.params) != ("app_ver", "offset", "signed", "extra"):
@@ -402,6 +630,45 @@ def prepare_read_contract(
                 score=contract.params["score"] if preview else None,
                 app_version=contract.params["app_ver"],
             )
+    elif contract.route == "events/crewEventProgress" and contract.request_type == 4:
+        if tuple(contract.params) != ("crew_uid", "event_id", "series_id", "app_ver"):
+            raise ReadContractError("unexpected crew event progress request fields")
+        canonical = crew_event_progress_contract(
+            contract.params["crew_uid"], contract.params["event_id"],
+            contract.params["series_id"], app_version=contract.params["app_ver"])
+    elif contract.route == "crews/showCrewsRanks" and contract.request_type == 3:
+        if tuple(contract.params) != ("crew_uid", "app_ver", "top", "before", "after"):
+            raise ReadContractError("unexpected crew rankings request fields")
+        canonical = crew_rankings_contract(
+            contract.params["crew_uid"], top=contract.params["top"],
+            before=contract.params["before"], after=contract.params["after"],
+            app_version=contract.params["app_ver"])
+    elif contract.route in WILDCARD_ROUTES and contract.request_type == 3:
+        if tuple(contract.params) != ("app_ver",):
+            raise ReadContractError("unexpected wildcard status request fields")
+        canonical = wildcard_status_contract(route=contract.route,
+                                             app_version=contract.params["app_ver"])
+    elif contract.route == "crews/checkCrewPerks" and contract.request_type == 3:
+        if tuple(contract.params) != ("crew_uid", "app_ver"):
+            raise ReadContractError("unexpected crew perks request fields")
+        canonical = crew_perks_contract(contract.params["crew_uid"],
+                                        app_version=contract.params["app_ver"])
+    elif contract.route == "season_pass/season_pass_info" and contract.request_type == 1:
+        if tuple(contract.params) != ("app_ver",):
+            raise ReadContractError("unexpected season pass request fields")
+        canonical = season_pass_contract(app_version=contract.params["app_ver"])
+    elif contract.route == "collections/get_collections_blob_data" and contract.request_type == 1:
+        if tuple(contract.params) != ("app_ver",):
+            raise ReadContractError("unexpected collections blob request fields")
+        canonical = collections_blob_contract(app_version=contract.params["app_ver"])
+    elif contract.route == "grand_tour/get_season_details" and contract.request_type == 1:
+        if tuple(contract.params) != ("app_ver", "extra"):
+            raise ReadContractError("unexpected grand tour request fields")
+        extra = contract.params["extra"]
+        if not isinstance(extra, Mapping) or tuple(extra) != ("activeScheduleId",):
+            raise ReadContractError("grand tour extra must carry only activeScheduleId")
+        canonical = grand_tour_contract(extra["activeScheduleId"],
+                                        app_version=contract.params["app_ver"])
     else:
         raise ReadContractError("operation is not on the traced read-only allowlist")
     # Do not accept hand-built or mutated request fields that bypass validation.
@@ -414,4 +681,9 @@ def prepare_read_contract(
 __all__ = [
     "ReadContract", "ReadContractError", "StandingRange",
     "own_crew_contract", "crew_members_contract", "GCC_METADATA_DEFAULT_PREFIX", "gcc_progress_contract", "gcc_progress_range_contract", "showdown_standings_contract", "event_standings_contract", "event_crew_standings_contract", "showdown_leagues_score_contract", "prepare_read_contract",
+    "crew_event_progress_contract", "crew_rankings_contract",
+    "season_pass_contract", "collections_blob_contract", "grand_tour_contract",
+    "tournament_race_contract",
+    "weekly_leaderboard_contract", "WEEKLY_LEADERBOARDS",
+    "WILDCARD_ROUTES", "wildcard_status_contract", "crew_perks_contract",
 ]

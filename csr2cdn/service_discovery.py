@@ -324,6 +324,151 @@ def scan_showdowns(blocks: Mapping[str, Any], *, at: Optional[datetime] = None) 
     return tuple(found)
 
 
+# ---------------------------------------------------------------------------
+# Board ledger
+#
+# Observed 2026-11-15: when the server rolled its modular event catalogue
+# forward, the bundles of showdowns that had already started left it, while
+# those showdowns kept running in game for days (SMP_SHOWDOWN_279_W2 until
+# Nov 18). The client keeps the bundle it downloaded; a discovery that reads
+# the catalogue from scratch cannot. A board identifier cannot be rebuilt
+# without the group, so the only robust remedy is to remember it.
+#
+# The ledger is opt-in and stores only what discovery itself resolved: event
+# and schedule ids, the board name, its window and template. No account data,
+# no replies, no credentials.
+
+LEDGER_VERSION = 1
+#: Entries are dropped this long after their window closed.
+LEDGER_RETENTION_SECONDS = 30 * 24 * 3600
+
+
+def _iso(moment: Optional[datetime]) -> Optional[str]:
+    return moment.astimezone(timezone.utc).isoformat() if moment is not None else None
+
+
+def _from_iso(text: Any) -> Optional[datetime]:
+    if not isinstance(text, str):
+        return None
+    try:
+        moment = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    return moment if moment.tzinfo is not None else None
+
+
+class ShowdownBoardLedger:
+    """Remembers resolved Showdown boards, so a catalogue rollover cannot hide a live one.
+
+    `record` keeps every *requestable* candidate with an explicit window.
+    `carried` returns the remembered boards that the current scan no longer
+    lists, as candidates marked ``resolution_source="ledger"``. Nothing is
+    inferred: a board is carried only if discovery once resolved it itself
+    (or a caller supplied it through `remember`), and its time status comes
+    from the window recorded then.
+    """
+
+    def __init__(self, path=None):
+        self.path = Path(path) if path is not None else None
+        self._entries: dict = {}
+        if self.path is not None and self.path.exists():
+            self._load()
+
+    def _load(self) -> None:
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return  # an unreadable ledger is an empty one, never a crash
+        if not isinstance(data, dict) or data.get("version") != LEDGER_VERSION:
+            return
+        boards = data.get("boards")
+        if isinstance(boards, dict):
+            for event_id, entry in boards.items():
+                if isinstance(event_id, str) and isinstance(entry, dict) \
+                        and isinstance(entry.get("leaderboard_name"), str) \
+                        and _from_iso(entry.get("starts_at")) and _from_iso(entry.get("ends_at")):
+                    self._entries[event_id] = dict(entry)
+
+    def _save(self) -> None:
+        if self.path is None:
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        tmp.write_text(json.dumps({"version": LEDGER_VERSION, "boards": self._entries},
+                                  indent=2, sort_keys=True), encoding="utf-8")
+        tmp.replace(self.path)
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def remember(self, event_id: str, leaderboard_name: str, starts_at: datetime,
+                 ends_at: datetime, *, schedule_id: Optional[str] = None,
+                 display_name: Optional[str] = None,
+                 leaderboard_template_id: Optional[str] = None) -> None:
+        """Add one board explicitly, e.g. one known from an earlier capture."""
+        if not isinstance(event_id, str) or not event_id:
+            raise ValueError("event_id is required")
+        if not isinstance(leaderboard_name, str) or not leaderboard_name:
+            raise ValueError("leaderboard_name is required")
+        for moment in (starts_at, ends_at):
+            if not isinstance(moment, datetime) or moment.tzinfo is None:
+                raise ValueError("window bounds must be timezone-aware datetimes")
+        if not starts_at < ends_at:
+            raise ValueError("starts_at must be before ends_at")
+        self._entries[event_id] = {
+            "leaderboard_name": leaderboard_name, "schedule_id": schedule_id,
+            "display_name": display_name, "leaderboard_template_id": leaderboard_template_id,
+            "starts_at": _iso(starts_at), "ends_at": _iso(ends_at)}
+        self._save()
+
+    def record(self, candidates: Sequence["ShowdownCandidate"], *,
+               at: Optional[datetime] = None) -> int:
+        """Remember every requestable candidate that has a window; prune old ones."""
+        at = at or datetime.now(timezone.utc)
+        changed = 0
+        for c in candidates:
+            if not c.requestable or c.starts_at is None or c.ends_at is None:
+                continue
+            if c.resolution_source == "ledger":
+                continue
+            entry = {"leaderboard_name": c.leaderboard_name, "schedule_id": c.schedule_id,
+                     "display_name": c.display_name,
+                     "leaderboard_template_id": c.leaderboard_template_id,
+                     "starts_at": _iso(c.starts_at), "ends_at": _iso(c.ends_at)}
+            if self._entries.get(c.event_id) != entry:
+                self._entries[c.event_id] = entry
+                changed += 1
+        for event_id in [k for k, v in self._entries.items()
+                         if (at - _from_iso(v["ends_at"])).total_seconds()
+                         > LEDGER_RETENTION_SECONDS]:
+            del self._entries[event_id]
+            changed += 1
+        if changed:
+            self._save()
+        return changed
+
+    def carried(self, present: Sequence["ShowdownCandidate"], *,
+                at: Optional[datetime] = None) -> Tuple["ShowdownCandidate", ...]:
+        """Remembered boards the current scan does not list, with their recorded window."""
+        at = at or datetime.now(timezone.utc)
+        seen = {c.event_id for c in present} | {c.leaderboard_name for c in present
+                                                 if c.leaderboard_name}
+        out = []
+        for event_id, entry in sorted(self._entries.items()):
+            if event_id in seen or entry["leaderboard_name"] in seen:
+                continue
+            starts, ends = _from_iso(entry["starts_at"]), _from_iso(entry["ends_at"])
+            status = ("upcoming" if at < starts else
+                      "scheduled_now" if at < ends else "elapsed")
+            out.append(ShowdownCandidate(
+                event_id=event_id, schedule_id=entry.get("schedule_id"),
+                leaderboard_name=entry["leaderboard_name"], starts_at=starts, ends_at=ends,
+                time_status=status, leaderboard_template_id=entry.get("leaderboard_template_id"),
+                identifier_source="ledger", display_name=entry.get("display_name"),
+                resolution_source="ledger"))
+        return tuple(out)
+
+
 class ShowdownDiscovery:
     """Refreshable metadata provider for finding time-window Showdown candidates.
 
@@ -333,7 +478,8 @@ class ShowdownDiscovery:
     """
 
     def __init__(self, source: Callable[[], Mapping[str, Any]], *, ttl: float = 300.0,
-                 modular_source: Optional[Callable[[], Sequence[Mapping[str, Any]]]] = None):
+                 modular_source: Optional[Callable[[], Sequence[Mapping[str, Any]]]] = None,
+                 ledger: Optional["ShowdownBoardLedger"] = None):
         if not callable(source):
             raise TypeError("source must be callable")
         if ttl < 0:
@@ -345,6 +491,10 @@ class ShowdownDiscovery:
         self.source_coverage = "standalone_only" if modular_source is None else "runtime_groups_supplied"
         self._blocks = None
         self._updated = None
+        if ledger is not None and not isinstance(ledger, ShowdownBoardLedger):
+            raise TypeError("ledger must be a ShowdownBoardLedger")
+        #: Optional memory of resolved boards; see `ShowdownBoardLedger`.
+        self.ledger = ledger
 
     @classmethod
     def from_json_directory(cls, directory, *, ttl: float = 300.0,
@@ -364,7 +514,7 @@ class ShowdownDiscovery:
     @classmethod
     def from_metadata(cls, client, *, player_id: str, product_version: str, ttl: float = 300.0,
                       modular_source: Optional[Callable[[], Sequence[Mapping[str, Any]]]] = None,
-                      asset_cdn=None):
+                      asset_cdn=None, ledger: Optional["ShowdownBoardLedger"] = None):
         if not player_id:
             raise ValueError("player_id is required")
         if not product_version:
@@ -383,7 +533,7 @@ class ShowdownDiscovery:
                 raise ValueError("select either an asset CDN or explicit modular source")
             from csr2cdn.service_modular_assets import load_modular_event_metadata
             modular_source = lambda: load_modular_event_metadata(asset_cdn)
-        result = cls(load, ttl=ttl, modular_source=modular_source)
+        result = cls(load, ttl=ttl, modular_source=modular_source, ledger=ledger)
         if asset_cdn is not None:
             result.source_coverage = "runtime_asset_bundles"
         return result
@@ -409,7 +559,11 @@ class ShowdownDiscovery:
     def list_showdowns(self, *, at=None, refresh=False):
         if refresh or self._updated is None or time.monotonic()-self._updated >= self.ttl:
             self.refresh()
-        return scan_showdowns(self._blocks, at=at)
+        found = scan_showdowns(self._blocks, at=at)
+        if self.ledger is None:
+            return found
+        self.ledger.record(found, at=at)
+        return found + self.ledger.carried(found, at=at)
 
     def scheduled_now(self, *, at=None, refresh=False):
         return tuple(x for x in self.list_showdowns(at=at, refresh=refresh)
@@ -445,4 +599,4 @@ class ShowdownDiscovery:
         return EventCatalog(load, ttl=self.ttl)
 
 
-__all__ = ["ShowdownDiscovery", "ShowdownCandidate", "SHOWDOWN_METADATA_BLOCKS", "scan_showdowns", "merge_modular_showdown_groups", "modular_event_assets", "MODULAR_EVENT_ASSET_TYPE", "merge_modular_event_metadata"]
+__all__ = ["ShowdownDiscovery", "ShowdownCandidate", "ShowdownBoardLedger", "LEDGER_VERSION", "SHOWDOWN_METADATA_BLOCKS", "scan_showdowns", "merge_modular_showdown_groups", "modular_event_assets", "MODULAR_EVENT_ASSET_TYPE", "merge_modular_event_metadata"]
