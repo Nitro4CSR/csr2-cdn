@@ -168,10 +168,11 @@ def test_standings_fold_members_and_crews():
     assert alice.crew_id == "A"
     assert alice.races_entered == 6
     assert alice.total_attempts == sum(2 + i for i in range(6))
-    assert alice.sum_best_time_ms == sum(10000 + i for i in range(6))
+    assert alice.sum_best_time_raw == sum(10000 + i for i in range(6))
     rt = alice.race_time("Day1", "Race1")
-    assert rt.best_time_ms == 10000
-    assert rt.best_time_seconds == 10.0
+    assert rt.best_time_raw == 10000
+    assert rt.best_time_seconds == 1.0     # score is 1e-4 s: 10000 -> 1.0 s
+    assert rt.best_time_ms == 1000.0       # ... and 1000.0 ms
     assert rt.rank == 1
 
 
@@ -180,8 +181,8 @@ def test_standings_crew_aggregate():
     crew_a = st.crew("A")
     assert crew_a.member_count == 2
     assert crew_a.participating_member_count == 2
-    assert crew_a.sum_best_time_ms == (sum(10000 + i for i in range(6))
-                                       + sum(12000 + i for i in range(6)))
+    assert crew_a.sum_best_time_raw == (sum(10000 + i for i in range(6))
+                                        + sum(12000 + i for i in range(6)))
 
 
 def test_standings_skip_a_closed_board():

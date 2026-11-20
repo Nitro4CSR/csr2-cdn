@@ -25,8 +25,11 @@ The race board
 
     e.g. ``csr2-collections-tournament---279-88997819_89025506_89125558-Day1_Race1``.
     ``leaderboard/{board}/top`` (request type 5) returns one row per member with
-    the best time in milliseconds (``score``; rank 1 is fastest) and the number
-    of attempts (``races``).
+    the best time (``score``; rank 1 is fastest) and the number of attempts
+    (``races``). The ``score`` is the elapsed time in ten-thousandths of a
+    second -- a fixed-point integer, ET seconds x 10000 (1 unit = 0.1 ms) --
+    so seconds are ``score / 10000`` (e.g. a 1.7237 s run is ``score`` 17237),
+    verified against tournament 279 live times.
 
 The crew ranking the game shows is computed on the client as trophies
 (``CrewRaceResult``: participation plus leaderboard trophies, scaled by each
@@ -286,15 +289,22 @@ class MemberRaceTime:
 
     day_id: str
     race_id: str
-    #: Best time in milliseconds (the board's ``score``); lower is better.
-    best_time_ms: Optional[int] = None
+    #: Best time in the board's raw ``score`` units: ten-thousandths of a
+    #: second (ET seconds x 10000; 1 unit = 0.1 ms), lower is better. Use
+    #: :attr:`best_time_seconds` or :attr:`best_time_ms` to convert.
+    best_time_raw: Optional[int] = None
     #: Number of attempts the member made on this board (the board's ``races``).
     attempts: Optional[int] = None
     rank: Optional[int] = None
 
     @property
     def best_time_seconds(self) -> Optional[float]:
-        return None if self.best_time_ms is None else self.best_time_ms / 1000.0
+        return None if self.best_time_raw is None else self.best_time_raw / 10000.0
+
+    @property
+    def best_time_ms(self) -> Optional[float]:
+        """Best time in real milliseconds (the raw score is 0.1 ms units)."""
+        return None if self.best_time_raw is None else self.best_time_raw / 10.0
 
 
 @dataclass(frozen=True)
@@ -312,7 +322,7 @@ class TournamentMemberResult:
 
     @property
     def races_entered(self) -> int:
-        return sum(1 for t in self.times if t.best_time_ms is not None)
+        return sum(1 for t in self.times if t.best_time_raw is not None)
 
     @property
     def total_attempts(self) -> Optional[int]:
@@ -320,14 +330,19 @@ class TournamentMemberResult:
         return sum(got) if got else None
 
     @property
-    def sum_best_time_ms(self) -> Optional[int]:
-        got = [t.best_time_ms for t in self.times if t.best_time_ms is not None]
+    def sum_best_time_raw(self) -> Optional[int]:
+        got = [t.best_time_raw for t in self.times if t.best_time_raw is not None]
         return sum(got) if got else None
 
     @property
     def sum_best_time_seconds(self) -> Optional[float]:
-        total = self.sum_best_time_ms
-        return None if total is None else total / 1000.0
+        total = self.sum_best_time_raw
+        return None if total is None else total / 10000.0
+
+    @property
+    def sum_best_time_ms(self) -> Optional[float]:
+        total = self.sum_best_time_raw
+        return None if total is None else total / 10.0
 
 
 @dataclass(frozen=True)
@@ -346,9 +361,19 @@ class TournamentCrewResult:
         return sum(1 for m in self.members if m.races_entered > 0)
 
     @property
-    def sum_best_time_ms(self) -> Optional[int]:
-        got = [m.sum_best_time_ms for m in self.members if m.sum_best_time_ms is not None]
+    def sum_best_time_raw(self) -> Optional[int]:
+        got = [m.sum_best_time_raw for m in self.members if m.sum_best_time_raw is not None]
         return sum(got) if got else None
+
+    @property
+    def sum_best_time_seconds(self) -> Optional[float]:
+        total = self.sum_best_time_raw
+        return None if total is None else total / 10000.0
+
+    @property
+    def sum_best_time_ms(self) -> Optional[float]:
+        total = self.sum_best_time_raw
+        return None if total is None else total / 10.0
 
     @property
     def total_attempts(self) -> Optional[int]:

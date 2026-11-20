@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.3
+
+A fix to the Collections Tournament times, which 0.7.2 reported 10x too large.
+
+### Fixed
+
+- **Board `score` is ten-thousandths of a second, not milliseconds.** A race
+  board row's `score` is the elapsed time as a fixed-point integer (ET seconds
+  x 10000; 1 unit = 0.1 ms), so seconds are `score / 10000`. 0.7.2 divided by
+  1000, so a 1.7237 s run was reported as 17.237 s. Confirmed against
+  tournament 279's live rows and the known competitive times for each race.
+- `MemberRaceTime.best_time_seconds` and `.best_time_ms` now convert correctly;
+  the stored raw value moves from the mis-named `best_time_ms` field to
+  `best_time_raw` (the board's own 0.1 ms units), and `best_time_ms` /
+  `sum_best_time_ms` become derived real-millisecond values. The same correction
+  applies to `TournamentMemberResult` / `TournamentCrewResult` time sums.
+
 ## 0.7.2
 
 Season arithmetic, cup and reward metadata, new crew-service reads, and a fix that made error
