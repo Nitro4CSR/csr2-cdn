@@ -29,6 +29,15 @@ The Weekly Elite Cup (`ET_WEEKLY_CREW_TRIAL`), read-only.
   counters to see who was active over the window (an activity proxy, not an
   exact WEC race count). `per_member_races_available` is `False` to make that
   explicit.
+- **Non-secure blob parsers (`profile_parse`).** Pure functions that read two
+  specific facts out of an already-decoded non-secure blob the caller supplies;
+  they never fetch, decrypt, or persist, and return only the narrow result, not
+  the blob. `parse_weekly_elite_cup_attempts(blob, cup)` →
+  `WeeklyEliteCupAttempts` (the account's own race count toward the 8/day cap,
+  from `evca`/`cert`, scoped to the cup's event id). `owns_prestige_cup_car` /
+  `owns_car` / `owns_any_car` / `owned_car_db_names` read `caow[].crdb` to test
+  car ownership (the prestige-cup helper takes the eligible `crdb`(s), which are
+  a cup-config property, as an argument).
 
 ## 0.7.3
 
