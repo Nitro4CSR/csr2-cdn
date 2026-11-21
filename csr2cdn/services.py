@@ -731,6 +731,55 @@ class CSR2Services:
         return self.decode_crew_event_progress(self._read(
             self.prepare_crew_event_progress(event_id, series_id, crew_uid=crew_uid)))
 
+    # -- Weekly Elite Cup ---------------------------------------------------
+
+    def weekly_elite_cup(self, iteration: Optional[int] = None, *,
+                         now: Optional[int] = None):
+        """The current Weekly Elite Cup (or a given ``iteration``), computed offline."""
+        from .weekly_elite_cup import WeeklyEliteCup
+        if iteration is None:
+            return WeeklyEliteCup.current(now)
+        return WeeklyEliteCup.for_iteration(iteration)
+
+    def prepare_weekly_elite_cup_progress(self, iteration: Optional[int] = None, *,
+                                          crew_uid: Optional[str] = None,
+                                          now: Optional[int] = None) -> ReadContract:
+        """Offline ``events/crewEventProgress`` request for the Weekly Elite Cup."""
+        cup = self.weekly_elite_cup(iteration, now=now)
+        return self.prepare_crew_event_progress(str(cup.event_id), str(cup.series_id),
+                                                crew_uid=crew_uid)
+
+    def get_weekly_elite_cup_progress(self, iteration: Optional[int] = None, *,
+                                      crew_uid: Optional[str] = None,
+                                      now: Optional[int] = None):
+        """The crew's collective progress on the current (or given) Weekly Elite Cup."""
+        from .weekly_elite_cup import WeeklyEliteCupProgress
+        cup = self.weekly_elite_cup(iteration, now=now)
+        cep = self.decode_crew_event_progress(self._read(
+            self.prepare_crew_event_progress(str(cup.event_id), str(cup.series_id),
+                                             crew_uid=crew_uid)))
+        return WeeklyEliteCupProgress.from_crew_event_progress(cup, cep)
+
+    def get_weekly_elite_cup_participation(self, iteration: Optional[int] = None, *,
+                                           crew_uid: Optional[str] = None,
+                                           now: Optional[int] = None):
+        """Who is on the crew, plus the crew's Weekly Elite Cup progress.
+
+        Collects every crew member (``crews/viewMembers``) with their identity
+        and cumulative activity counters, and pairs them with the crew's
+        collective cup progress. The server exposes no per-member race count
+        for this event, so there is none here: snapshot this at the cup's start
+        and again near its end and diff the counters to see who was active over
+        the window. Exact per-member race tallies live only in each member's
+        own non-secure blob and are never returned crew-wide.
+        """
+        from .weekly_elite_cup import WeeklyEliteCupParticipation
+        crew_uid = self._resolved_crew_uid(crew_uid)
+        cup = self.weekly_elite_cup(iteration, now=now)
+        progress = self.get_weekly_elite_cup_progress(iteration, crew_uid=crew_uid, now=now)
+        roster = self.get_crew_members(crew_uid)
+        return WeeklyEliteCupParticipation.from_reads(cup, progress, roster, now=now)
+
     def prepare_crew_rankings(self, *, top: int = 10, before: int = 5, after: int = 5,
                               crew_uid: Optional[str] = None) -> ReadContract:
         """Offline `crews/showCrewsRanks` request; no offset, by native design."""

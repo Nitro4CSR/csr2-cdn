@@ -95,6 +95,13 @@ from csr2cdn.collections_tournament import (
     MemberRaceTime, TournamentMemberResult, TournamentCrewResult,
     CollectionsTournamentStandings,
 )
+from csr2cdn.weekly_elite_cup import (
+    WeeklyEliteCup, WeeklyEliteCupProgress, WeeklyEliteCupParticipation,
+    WeeklyEliteCupMemberActivity, current_iteration as wec_current_iteration,
+    event_id_for as wec_event_id_for, iteration_of_event_id as wec_iteration_of_event_id,
+    SERIES_ID as WEC_SERIES_ID, CREW_MEMBER_CONTRIBUTION as WEC_MEMBER_CAP,
+    GOAL_RACES as WEC_GOAL_RACES,
+)
 from csr2cdn.crew_optional_data import (CrewOptionalSnapshot, CrewOptionalStats, CrewMemberOptionalStats, CrewMemberVehicle, CrewVehicleGacha, CrewVehicleAppearance, CrewVehicleVisuals, CrewVisualSelection, InteriorDisplayName, CrewEmblem, CrewPresentation, CrewTournamentShape,
                                       CrewTournament, CrewTournamentEvent, CrewTournamentRival,
                                       TOURNAMENT_CADENCE_DAYS)
@@ -142,7 +149,7 @@ from csr2cdn.snapshots import (
     SnapshotNotFoundError,
 )
 
-__version__ = "0.7.3"
+__version__ = "0.7.4"
 
 __all__ = [
     "CSR2Services", "ServiceNetworkDisabled", "ServiceHTTPError",
@@ -240,6 +247,16 @@ __all__ = [
     "store",
     "store_versions",
     "successors",
+    "WeeklyEliteCup",
+    "WeeklyEliteCupProgress",
+    "WeeklyEliteCupParticipation",
+    "WeeklyEliteCupMemberActivity",
+    "wec_current_iteration",
+    "wec_event_id_for",
+    "wec_iteration_of_event_id",
+    "WEC_SERIES_ID",
+    "WEC_MEMBER_CAP",
+    "WEC_GOAL_RACES",
     "__version__",
 ]
 

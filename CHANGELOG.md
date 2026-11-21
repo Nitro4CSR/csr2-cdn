@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.7.4
+
+The Weekly Elite Cup (`ET_WEEKLY_CREW_TRIAL`), read-only.
+
+### New
+
+- **`weekly_elite_cup` module.** The cup is a weekly-repeating crew `SeriesEvent`
+  whose per-week instance id is minted on the client, so it never appears in the
+  downloadable metadata by number. Decoded from the 6.8.0 client and confirmed
+  live against `events/crewEventProgress`:
+  - `WeeklyEliteCup` computes a week's instance entirely offline: iteration
+    number, the minted `event_id` (`08` + 5-digit iteration + `999`, from
+    `SeriesEvent.GenerateUniqueWeeklyEventID`), `series_id` 19999, the Mon 10:00
+    → Fri 10:00 UTC window, and `is_live`. `current_iteration` / `event_id_for`
+    / `iteration_of_event_id` are the standalone helpers.
+  - `CSR2Services.get_weekly_elite_cup_progress(...)` returns the crew's
+    collective race count (`WeeklyEliteCupProgress`, with `remaining` /
+    `goal_reached` against the 900-race goal). `weekly_elite_cup(...)` and
+    `prepare_weekly_elite_cup_progress(...)` expose the offline pieces.
+- **Participation snapshot.** `get_weekly_elite_cup_participation(...)` pairs the
+  crew total with the roster (`WeeklyEliteCupParticipation`: every member's
+  identity and cumulative activity counters at a moment, plus the cup progress).
+  The server exposes **no** per-member race count for this event — it is not on
+  a leaderboard board, no per-member parameter changes the reply, and each
+  member's own tally lives only in that member's non-secure blob — so this view
+  carries none. Snapshot it at the cup's start and near its end and diff the
+  counters to see who was active over the window (an activity proxy, not an
+  exact WEC race count). `per_member_races_available` is `False` to make that
+  explicit.
+
 ## 0.7.3
 
 A fix to the Collections Tournament times, which 0.7.2 reported 10x too large.
