@@ -754,10 +754,12 @@ class CSR2Services:
                                       now: Optional[int] = None):
         """The crew's collective progress on the current (or given) Weekly Elite Cup."""
         from .weekly_elite_cup import WeeklyEliteCupProgress
+        # Resolve the cup once, then reuse prepare_... so the request is built in
+        # exactly one place; passing the concrete iteration pins it (no second
+        # clock read that could straddle a week boundary).
         cup = self.weekly_elite_cup(iteration, now=now)
         cep = self.decode_crew_event_progress(self._read(
-            self.prepare_crew_event_progress(str(cup.event_id), str(cup.series_id),
-                                             crew_uid=crew_uid)))
+            self.prepare_weekly_elite_cup_progress(cup.iteration, crew_uid=crew_uid)))
         return WeeklyEliteCupProgress.from_crew_event_progress(cup, cep)
 
     def get_weekly_elite_cup_participation(self, iteration: Optional[int] = None, *,
@@ -776,7 +778,8 @@ class CSR2Services:
         from .weekly_elite_cup import WeeklyEliteCupParticipation
         crew_uid = self._resolved_crew_uid(crew_uid)
         cup = self.weekly_elite_cup(iteration, now=now)
-        progress = self.get_weekly_elite_cup_progress(iteration, crew_uid=crew_uid, now=now)
+        # Pin the resolved iteration so the progress read targets the same cup.
+        progress = self.get_weekly_elite_cup_progress(cup.iteration, crew_uid=crew_uid)
         roster = self.get_crew_members(crew_uid)
         return WeeklyEliteCupParticipation.from_reads(cup, progress, roster, now=now)
 
