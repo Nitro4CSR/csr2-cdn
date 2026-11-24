@@ -783,6 +783,33 @@ class CSR2Services:
         roster = self.get_crew_members(crew_uid)
         return WeeklyEliteCupParticipation.from_reads(cup, progress, roster, now=now)
 
+    # -- Crew Cup -----------------------------------------------------------
+
+    def prepare_crew_cup_progress(self, event_id, *,
+                                  crew_uid: Optional[str] = None) -> ReadContract:
+        """Offline ``events/crewEventProgress`` request for a Crew Cup.
+
+        ``event_id`` is the server-assigned Crew Cup id (not derivable from
+        metadata; supply an observed value). The server ignores ``series_id``
+        for this event, so the event id is passed as both.
+        """
+        return self.prepare_crew_event_progress(str(event_id), str(event_id),
+                                                crew_uid=crew_uid)
+
+    def get_crew_cup_progress(self, event_id, *, crew_uid: Optional[str] = None):
+        """The crew's collective progress on the Crew Cup with ``event_id``.
+
+        ``event_id`` is supplied (e.g. from the event screen or an account's
+        ``evca`` key); the Crew Cup is not published in any downloadable
+        metadata, so it cannot be discovered here. Returns a
+        :class:`csr2cdn.crew_cup.CrewCupProgress`.
+        """
+        from .crew_cup import CrewCup, CrewCupProgress
+        cup = CrewCup(event_id=int(event_id))
+        cep = self.decode_crew_event_progress(self._read(
+            self.prepare_crew_cup_progress(cup.event_id, crew_uid=crew_uid)))
+        return CrewCupProgress.from_crew_event_progress(cup, cep)
+
     def prepare_crew_rankings(self, *, top: int = 10, before: int = 5, after: int = 5,
                               crew_uid: Optional[str] = None) -> ReadContract:
         """Offline `crews/showCrewsRanks` request; no offset, by native design."""

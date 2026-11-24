@@ -29,6 +29,19 @@ The Weekly Elite Cup (`ET_WEEKLY_CREW_TRIAL`), read-only.
   counters to see who was active over the window (an activity proxy, not an
   exact WEC race count). `per_member_races_available` is `False` to make that
   explicit.
+- **Crew Cup reader (`crew_cup`).** A short crew-collective race event read by
+  its event id. Unlike WEC (client-minted id) and the Collections/Prestige cups
+  (schedule discovery), the Crew Cup's per-instance id is assigned server-side
+  and is in **no** downloadable metadata (verified against 6.9.0:
+  `EventSchedule`, `SpecialLadderEvents`, `CupInvitationalRaceSeries` and the
+  season bundles — the id and its neighbours were absent). It surfaces only on
+  the event screen or in a participating account's `evca`. So
+  `CSR2Services.get_crew_cup_progress(event_id)` **reads** a supplied id rather
+  than discovering one, returning `CrewCupProgress` (crew race count +
+  `participated`, with `remaining`/`goal_reached` against a caller-supplied
+  milestone). The server ignores `series_id` for this event, so the event id is
+  passed as both. `CREW_CUP_MEMBER_CAP` is the per-member daily attempt cap (3).
+  Confirmed live 2026-11-24: event `301177866` → progress 88, participated true.
 
 ## 0.7.3
 
