@@ -22,6 +22,18 @@ Supply the id you observed. The crew's collective progress comes from
 ``events/crewEventProgress``; for this event the server ignores ``series_id``
 (every value returns the same crew total), so only the event id matters.
 
+Why it cannot be derived (decoded from the 6.8.0 binary, for the record): the
+id is minted by ``RaceEventGroup::GenerateUniqueEventID`` inside
+``RaceEventGroup::ProcessRepeatableEvents`` as
+``int(pad(EventFile,2) + pad(A,3) + pad(IndexInSeason,2) + pad(B,3))`` -- e.g.
+``301177866`` decodes to ``EventFile=3, A=11, IndexInSeason=77, B=866`` (the
+concurrent collections race ``301176248`` is ``3, 11, 76, 248``). Unlike the
+Weekly Elite Cup, whose weekly counter is ``(now - anchor) / period``,
+``get_IndexInSeason`` reads a stored field that is populated at runtime during
+Grand Crew Championship season processing; it is ``0`` throughout the
+downloadable metadata and the current cup's template is absent, so the inputs
+exist only in live client state. Hence: observe the id, do not compute it.
+
 Confirmed live on 2026-11-24: event ``301177866`` returned ``progress`` 88 with
 ``participated`` true for the querying account's crew. ``progress`` is a crew
 race count (not the Crew RP reward figure shown on the milestone ladder).
