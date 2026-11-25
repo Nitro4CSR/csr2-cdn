@@ -6,18 +6,35 @@ The Weekly Elite Cup (`ET_WEEKLY_CREW_TRIAL`), read-only.
 
 ### Changed
 
-- **Hub CDN moved to `https://v2cdn.csr2hub.space`.** `DEFAULT_HUB_BASE_URL`
-  now points at the new host; the old `cdn.csr2hub.space` is no longer used.
-  The folder layout and `HubCDN` API are unchanged and verified live against the
-  new host (`database_version` → 35391, `get_database` → 24181 assets, snapshot
-  and CVD downloads succeed). Discovery of the new host (autoindex is disabled,
-  so paths were probed directly): it serves `AssetDatabases`, `CVD`,
-  `Snapshots`, `SnapshotsFull`, `SnapshotsGacha`, `SnapshotsRC` and `Gacha`; the
-  text/metadata categories (`TextData`, `Localisation`, `Icons`, `Libraries`,
-  `Linker`, `Addressables`, `DynamicEvents`, `ScreenLoading`, `ProfileStyles`)
-  and the `version-control.json` / `release-history.json` pointers are not
-  hosted there yet, so `version_info()` / `release_history()` and those category
-  reads return 404 until the host adds them.
+- **Hub CDN migrated to `https://v2cdn.csr2hub.space` (new taxonomy).**
+  `DEFAULT_HUB_BASE_URL` now points at the new host; the old `cdn.csr2hub.space`
+  is dropped entirely. The new host publishes a `content-tree.json` manifest
+  (its folder structure, GitHub tree shape) and a reorganised set of top-level
+  folders, so `HubCDN` was updated to match and verified live (all 19 category
+  conventions resolve, `database_version` → 35391, `get_database` → 24,181
+  assets):
+  - **`HUB_CATEGORIES`** is now `App`, `AssetDatabases`, `Assets`, `CAD`, `CGD`,
+    `Configs`, `CVD`, `Gacha`, `Icons`, `Localisation`, `NmgSvcs`, `Snapshots`,
+    `SnapshotsEC`, `SnapshotsFull`, `SnapshotsFullV2`, `SnapshotsGacha`,
+    `SnapshotsRC`. The old `Addressables`, `Linker`, `ScreenLoading` are now
+    under `App/`; `TextData`/`DynamicEvents`/`ProfileStyles`/`Libraries` are
+    gone, replaced by `Configs`, `NmgSvcs`, `Assets`, `CAD`, `CGD`.
+  - **`path_for`** rebuilt for the new layouts: flat folders, branded snapshots
+    (`<Brand>/<car>`), car-folder-indexed snapshots (`SnapshotsRC`/`SnapshotsEC`
+    `<car>/<index>`), `SnapshotsGacha` (`<Brand>/<car>/<index>`),
+    `Icons/<Cars|Collections|Manufacturers>/…`, and
+    `Localisation/Localisation_<LANG>.ASTC`. `HUB_SNAPSHOT_KINDS` adds
+    `SnapshotsFullV2` and `SnapshotsEC`; `HUB_ICON_GROUPS` is new.
+  - **`HUB_BRAND_MAP`** updated to the v2 folders (`Abarth`→`ABARTH`,
+    `GTA`→`GTAMotor`, `Indy`→`Indycar`, `MercedesAMGF1`→`MercedesPetronas`,
+    Mercedes variants→`Mercedes`).
+  - **New manifest/discovery:** `content_tree()`, `tree_entries()`,
+    `list_dir(prefix)` (immediate children, like the web UI) and `find(substr)`.
+    `get_config()` / `get_nmgsvc()` read the JSON config folders; `get_localisation()`
+    now returns the `.ASTC` bytes. The old `version-control.json` /
+    `release-history.json` pointers do not exist on the new host, so
+    `version_info()` / `release_history()` / `get_text_data()` were removed in
+    favour of `content_tree()`.
 
 ### New
 

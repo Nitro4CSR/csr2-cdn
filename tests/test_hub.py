@@ -48,27 +48,29 @@ class Session:
         self.closed = True
 
 
-# Examples taken from the archived repository tree. These assert its irregular
-# layouts (not a shared "brand/car.png" convention across every category).
+# Examples taken from the v2 CDN content-tree.json. Folder layouts are not a
+# single "brand/car.png" convention: flat files, branded snapshots, indexed
+# snapshots, Icons groups and Localisation bundles each differ.
 @pytest.mark.parametrize("category,name,kwargs,path", [
-    ("Addressables", "catalog_1.4.7.bin", {"version": "1.4.7"}, "Addressables/1.4.7/catalog_1.4.7.bin"),
-    ("AssetDatabases", "29385", {}, "AssetDatabases/29385"),
+    ("AssetDatabases", "35391", {}, "AssetDatabases/35391"),
+    ("Assets", "assets_client_metadata_217.ASTC", {}, "Assets/assets_client_metadata_217.ASTC"),
+    ("CAD", "CarCalliperLibrary.ASTC", {}, "CAD/CarCalliperLibrary.ASTC"),
+    ("CGD", "GlobalFlagTextures.ASTC", {}, "CGD/GlobalFlagTextures.ASTC"),
     ("CVD", "Abarth_500_2014", {}, "CVD/Abarth_500_2014"),
-    ("DynamicEvents", "assets_client_metadata_mini_series_4_core_1_sd.ASTC", {}, "DynamicEvents/assets_client_metadata_mini_series_4_core_1_sd.ASTC"),
-    ("Gacha", "Abarth_500_2014", {}, "Gacha/Abarth/Abarth_500_2014.zip"),
-    ("Icons", "BC/Mercedes_icon", {}, "Icons/BC/Mercedes_icon"),
-    ("Libraries", "_data.zip", {}, "Libraries/_data.zip"),
-    ("Linker", "community/_boot.zip", {}, "Linker/community/_boot.zip"),
-    ("Localisation", "PT-BR", {}, "Localisation/PT-BR.json"),
-    ("ProfileStyles", "Bg_LemansGiveway", {}, "ProfileStyles/Bg_LemansGiveway.png"),
-    ("ScreenLoading", "SL_Config.json", {}, "ScreenLoading/SL_Config.json"),
-    ("ScreenLoading", "0", {}, "ScreenLoading/0.jpg"),
-    ("Snapshots", "Abarth_500_2014", {}, "Snapshots/Abarth/Abarth_500_2014.png"),
-    ("SnapshotsFull", "Abarth_500_2014", {}, "SnapshotsFull/Abarth/Abarth_500_2014.png"),
-    ("SnapshotsGacha", "Abarth_500_2014", {"index": 10}, "SnapshotsGacha/Abarth/Abarth_500_2014/10.png"),
-    ("SnapshotsGacha", "Dallara_Stradale_2019", {}, "SnapshotsGacha/Dallara/Dallara_Stradale_2019.png"),
+    ("Configs", "AppScript_Cars.json", {}, "Configs/AppScript_Cars.json"),
+    ("NmgSvcs", "AIDriverNames.json", {}, "NmgSvcs/AIDriverNames.json"),
+    ("App", "Addressables/1.5.5/catalog_1.5.5.bin", {}, "App/Addressables/1.5.5/catalog_1.5.5.bin"),
+    ("Icons", "AMC_RingbrothersJavelinDefiant_1972_icon", {}, "Icons/Cars/AMC_RingbrothersJavelinDefiant_1972_icon"),
+    ("Icons", "ABARTH_icon", {"group": "Manufacturers"}, "Icons/Manufacturers/ABARTH_icon"),
+    ("Localisation", "EN", {}, "Localisation/Localisation_EN.ASTC"),
+    ("Localisation", "Localisation_DE.ASTC", {}, "Localisation/Localisation_DE.ASTC"),
+    ("Gacha", "Abarth_500_2014", {}, "Gacha/ABARTH/Abarth_500_2014.zip"),
+    ("Snapshots", "AMC_RingbrothersJavelinDefiant_1972", {}, "Snapshots/AMC/AMC_RingbrothersJavelinDefiant_1972.png"),
+    ("SnapshotsFull", "AMC_RingbrothersJavelinDefiant_1972", {}, "SnapshotsFull/AMC/AMC_RingbrothersJavelinDefiant_1972.png"),
+    ("SnapshotsFullV2", "Apollo_ProjectEvo_2022", {}, "SnapshotsFullV2/Apollo/Apollo_ProjectEvo_2022.png"),
+    ("SnapshotsGacha", "Abarth_500_2014", {"index": 0}, "SnapshotsGacha/ABARTH/Abarth_500_2014/0.png"),
     ("SnapshotsRC", "AstonMartin_DB5Classic_1964", {"index": "00"}, "SnapshotsRC/AstonMartin_DB5Classic_1964/00.png"),
-    ("TextData", "CarData", {}, "TextData/CarData.json"),
+    ("SnapshotsEC", "AstonMartin_DB5Classic_1964", {"index": "0"}, "SnapshotsEC/AstonMartin_DB5Classic_1964/0.png"),
 ])
 def test_blueprint_layouts(category, name, kwargs, path):
     assert HubCDN().path_for(category, name, **kwargs) == path
@@ -76,8 +78,8 @@ def test_blueprint_layouts(category, name, kwargs, path):
 
 @pytest.mark.parametrize("prefix,brand", [
     ("MercedesBenz", "Mercedes"), ("MercedesAMG", "Mercedes"),
-    ("MercedesAMGF1", "Mercedes"), ("LandRover", "Landrover"),
-    ("AMGeneral", "AM General"), ("Abarth", "Abarth"),
+    ("MercedesAMGF1", "MercedesPetronas"), ("Abarth", "ABARTH"),
+    ("GTA", "GTAMotor"), ("Indy", "Indycar"), ("Audi", "Audi"),
 ])
 def test_brand_mapping_and_url_encoding(prefix, brand):
     hub = HubCDN()
@@ -87,11 +89,13 @@ def test_brand_mapping_and_url_encoding(prefix, brand):
     assert hub.snapshot_path(prefix + "_Car", manufacturer="Custom Brand").startswith("Snapshots/Custom Brand/")
 
 
-def test_icons_preserve_filename_and_type():
+def test_icons_preserve_filename_and_group():
     hub = HubCDN()
-    assert hub.icon_path("Mercedes_icon") == "Icons/BC/Mercedes_icon"
-    assert hub.icon_path("Abarth_500_2014_icon.png", "Models") == "Icons/Models/Abarth_500_2014_icon.png"
-    assert hub.icon_path("FutureName", "NewCategory") == "Icons/NewCategory/FutureName"
+    assert hub.icon_path("AMC_Car_2020_icon") == "Icons/Cars/AMC_Car_2020_icon"
+    assert hub.icon_path("Mercedes_icon", "Manufacturers") == "Icons/Manufacturers/Mercedes_icon"
+    assert hub.icon_path("IconicCars_V1_icon.png", "Collections") == "Icons/Collections/IconicCars_V1_icon.png"
+    with pytest.raises(ValueError):
+        hub.icon_path("x", "Bogus")
 
 
 @pytest.mark.parametrize("path", ["", "/foo", "//evil/foo", "../foo", "a/../foo", "a/./foo", "a//b", "a/", "C:/foo", "a\\b", "https://evil/file", "a\x00b"])
@@ -111,29 +115,47 @@ def test_arbitrary_paths_are_quoted_without_query_injection():
 
 
 @pytest.mark.parametrize("category,kwargs", [
-    ("SnapshotsRC", {}), ("Addressables", {}),
+    ("SnapshotsRC", {}), ("SnapshotsEC", {}),
     ("CVD", {"manufacturer": "A"}), ("Snapshots", {"index": "0"}),
-    ("Gacha", {"version": "1"}), ("Future", {}),
+    ("CVD", {"group": "Cars"}), ("Future", {}),
 ])
 def test_invalid_layout_arguments(category, kwargs):
     with pytest.raises(ValueError):
         HubCDN().path_for(category, "Car_Name", **kwargs)
 
 
-def test_json_text_and_database_use_hub_only():
+def test_config_and_database_use_hub_only():
     session = Session(
         Response(b'\xef\xbb\xbf{"unicode":"hello"}'), Response(b"32652\n"),
         Response(json.dumps([{"version": "32652"}, [{"code": "Car", "version": "3"}]]).encode()),
     )
     hub = HubCDN(session=session, timeout=4, headers={"X-Test": "yes"})
-    assert hub.get_text_data("CarData") == {"unicode": "hello"}
+    assert hub.get_config("AppScript_Cars") == {"unicode": "hello"}
     assert hub.get_database().assets.Car.version == "3"
     assert [call[0] for call in session.calls] == [
         DEFAULT_HUB_BASE_URL + path for path in
-        ["/TextData/CarData.json", "/AssetDatabases/last.ver", "/AssetDatabases/32652"]
+        ["/Configs/AppScript_Cars.json", "/AssetDatabases/last.ver", "/AssetDatabases/32652"]
     ]
     assert session.calls[0][1]["timeout"] == 4
     assert session.calls[0][1]["headers"]["X-Test"] == "yes"
+
+
+def test_content_tree_list_dir_and_find():
+    tree = {"sha": "abc", "truncated": False, "tree": [
+        {"path": "Snapshots", "type": "tree"},
+        {"path": "Snapshots/AMC", "type": "tree"},
+        {"path": "Snapshots/AMC/AMC_Car_1972.png", "type": "blob", "size": 111},
+        {"path": "Snapshots/Audi/Audi_RS5_2014.png", "type": "blob", "size": 222},
+        {"path": "AssetDatabases/35391", "type": "blob", "size": 4},
+        {"path": "content-tree.json", "type": "blob", "size": 9},
+    ]}
+    body = json.dumps(tree).encode()
+    hub = HubCDN(session=Session(Response(body), Response(body), Response(body)))
+    root = {e["name"]: e["type"] for e in hub.list_dir()}
+    assert root == {"Snapshots": "tree", "AssetDatabases": "tree", "content-tree.json": "blob"}
+    brands = {e["name"]: e["type"] for e in hub.list_dir("Snapshots")}
+    assert brands == {"AMC": "tree", "Audi": "tree"}
+    assert hub.find("AMC_Car") == ["Snapshots/AMC/AMC_Car_1972.png"]
 
 
 @pytest.mark.parametrize("version", ["../bad", "", "null", '{"version":12}'])

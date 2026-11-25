@@ -27,7 +27,7 @@ from csr2cdn import __version__
 from csr2cdn.cdn import DEFAULT_BASE_URL, DEFAULT_PLATFORM, CDN
 from csr2cdn.database import DEFAULT_QUALITY, AssetDatabase
 from csr2cdn.errors import Csr2CdnError
-from csr2cdn.hub import DEFAULT_HUB_BASE_URL, HUB_CATEGORIES, HubCDN
+from csr2cdn.hub import DEFAULT_HUB_BASE_URL, HUB_CATEGORIES, HUB_SNAPSHOT_KINDS, HubCDN
 from csr2cdn.metadata import DEFAULT_METADATA_URL
 from csr2cdn.snapshots import SNAPSHOT_KINDS, SnapshotCDN
 
@@ -108,9 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
     hub_db.add_argument("--output", "-o", required=True)
     hub_snapshot = hub_sub.add_parser("snapshot", help="download any of the four snapshot layouts")
     hub_snapshot.add_argument("car")
-    hub_snapshot.add_argument("--kind", default="Snapshots", choices=[
-        "Snapshots", "SnapshotsFull", "SnapshotsGacha", "SnapshotsRC",
-    ])
+    hub_snapshot.add_argument("--kind", default="Snapshots", choices=list(HUB_SNAPSHOT_KINDS))
     hub_snapshot.add_argument("--manufacturer")
     hub_snapshot.add_argument("--index", help="exact index, including leading zeroes for RC")
     hub_snapshot.add_argument("--output", "-o", required=True)

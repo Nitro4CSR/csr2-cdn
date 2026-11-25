@@ -221,13 +221,13 @@ csr2cdn hub images Snapshots/AMC/AMC_RingbrothersJavelinDefiant_1972.png -o ./im
 csr2cdn --timeout 60 hub get AssetDatabases/35391 --json
 ```
 
-The `v2cdn.csr2hub.space` host currently serves the asset database and the
-car-image categories — `AssetDatabases`, `CVD`, `Snapshots`, `SnapshotsFull`,
-`SnapshotsGacha`, `SnapshotsRC` and `Gacha`. The text/metadata categories
-(`TextData`, `Localisation`, `Icons`, `Libraries`, `Linker`, `Addressables`,
-`DynamicEvents`, `ScreenLoading`, `ProfileStyles`) and the
-`version-control.json` / `release-history.json` pointers are not currently
-hosted there, so those requests return 404.
+The `v2cdn.csr2hub.space` host publishes a `content-tree.json` manifest of its
+whole folder tree. Its top-level folders are `App`, `AssetDatabases`, `Assets`,
+`CAD`, `CGD`, `Configs`, `CVD`, `Gacha`, `Icons`, `Localisation`, `NmgSvcs`,
+`Snapshots`, `SnapshotsEC`, `SnapshotsFull`, `SnapshotsFullV2`,
+`SnapshotsGacha` and `SnapshotsRC`. Use `content_tree()`, `list_dir(prefix)`
+(immediate children, like the web UI) and `find(substring)` to browse it. There
+is no `version-control.json` / `release-history.json` on this host.
 
 HUB uses `hub --hub-base-url`; the global `--base-url` is for the game CDN.
 Game discovery, platform, quality and metadata flags do not apply to HUB.
