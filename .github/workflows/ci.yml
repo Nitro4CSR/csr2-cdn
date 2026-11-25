@@ -9,17 +9,36 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded runs on the same ref so rapid pushes don't pile up queued
+# macOS jobs (scarce runners) and starve each other.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: ${{ matrix.os }} / Python ${{ matrix.python }}
     runs-on: ${{ matrix.os }}
+    # A hung or runner-starved job fails fast instead of lingering for hours.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
+      # Pure-Python package: the full interpreter range runs on Linux (cheap,
+      # fast), with oldest+newest smoke tests on Windows and newest on macOS.
+      # macOS runners are scarce, so a 5-version macOS leg queues and gets
+      # cancelled; one macOS job keeps coverage without starving the runners.
+      # ubuntu-24.04, not ubuntu-latest: ubuntu-latest moved to 26.04, whose
+      # setup-python has no 3.9 build, so ubuntu-latest x 3.9 fails to install.
       matrix:
-        # ubuntu-24.04, not ubuntu-latest: ubuntu-latest moved to 26.04, whose
-        # setup-python has no 3.9 build, so ubuntu-latest x 3.9 fails to install.
-        os: [ubuntu-24.04, windows-latest, macos-latest]
-        python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+        include:
+          - { os: ubuntu-24.04, python: '3.9' }
+          - { os: ubuntu-24.04, python: '3.10' }
+          - { os: ubuntu-24.04, python: '3.11' }
+          - { os: ubuntu-24.04, python: '3.12' }
+          - { os: ubuntu-24.04, python: '3.13' }
+          - { os: windows-latest, python: '3.9' }
+          - { os: windows-latest, python: '3.13' }
+          - { os: macos-latest, python: '3.13' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

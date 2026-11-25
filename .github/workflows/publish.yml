@@ -19,14 +19,27 @@ concurrency:
 
 jobs:
   test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
     runs-on: ${{ matrix.os }}
+    # A hung or runner-starved job fails fast instead of blocking the release.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
+      # Mirror ci.yml: full interpreter range on Linux, oldest+newest on
+      # Windows, newest on macOS. A 5-version macOS leg queues on scarce runners
+      # and gets cancelled, which previously blocked releases.
+      # ubuntu-24.04, not ubuntu-latest: ubuntu-latest moved to 26.04, whose
+      # setup-python has no 3.9 build, so ubuntu-latest x 3.9 fails to install.
       matrix:
-        # ubuntu-24.04, not ubuntu-latest: ubuntu-latest moved to 26.04, whose
-        # setup-python has no 3.9 build, so ubuntu-latest x 3.9 fails to install.
-        os: [ubuntu-24.04, windows-latest, macos-latest]
-        python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+        include:
+          - { os: ubuntu-24.04, python: '3.9' }
+          - { os: ubuntu-24.04, python: '3.10' }
+          - { os: ubuntu-24.04, python: '3.11' }
+          - { os: ubuntu-24.04, python: '3.12' }
+          - { os: ubuntu-24.04, python: '3.13' }
+          - { os: windows-latest, python: '3.9' }
+          - { os: windows-latest, python: '3.13' }
+          - { os: macos-latest, python: '3.13' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
