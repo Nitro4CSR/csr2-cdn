@@ -29,19 +29,27 @@ The Weekly Elite Cup (`ET_WEEKLY_CREW_TRIAL`), read-only.
   counters to see who was active over the window (an activity proxy, not an
   exact WEC race count). `per_member_races_available` is `False` to make that
   explicit.
-- **Crew Cup reader (`crew_cup`).** A short crew-collective race event read by
-  its event id. Unlike WEC (client-minted id) and the Collections/Prestige cups
-  (schedule discovery), the Crew Cup's per-instance id is assigned server-side
-  and is in **no** downloadable metadata (verified against 6.9.0:
-  `EventSchedule`, `SpecialLadderEvents`, `CupInvitationalRaceSeries` and the
-  season bundles — the id and its neighbours were absent). It surfaces only on
-  the event screen or in a participating account's `evca`. So
-  `CSR2Services.get_crew_cup_progress(event_id)` **reads** a supplied id rather
-  than discovering one, returning `CrewCupProgress` (crew race count +
-  `participated`, with `remaining`/`goal_reached` against a caller-supplied
-  milestone). The server ignores `series_id` for this event, so the event id is
-  passed as both. `CREW_CUP_MEMBER_CAP` is the per-member daily attempt cap (3).
-  Confirmed live 2026-11-24: event `301177866` → progress 88, participated true.
+- **Crew Cup (`crew_cup`).** The crew-collective race event (and its Token Cup
+  sibling), both discovered and read.
+  - `CSR2Services.discover_crew_cups()` / `active_crew_cup(kind="crew")` decode
+    the current season's **modular event bundle** from the asset CDN
+    (`load_modular_event_metadata`) and return `CrewCup` records — the crew cups
+    are absent from the metadata-service JSON blocks but present in the bundle
+    as `TEXT_CUPS_TITLE_CREW` / `TEXT_CUPS_TITLE_TOKEN` series, each carrying
+    `SeriesID` (= the event id), `TimeStart`/`TimeEnd`, `CrewMemberContribution`
+    and a `MetricID` (`requires_prestige_car` reads the car restriction off it).
+  - `get_crew_cup_progress()` with no arguments discovers the cup active now and
+    reads it; with an explicit `event_id` (e.g. from an account's `evca`) it
+    reads that one offline. Returns `CrewCupProgress` (crew race count +
+    `participated`, `remaining`/`goal_reached` against a caller-supplied
+    milestone). The server ignores `series_id`, so the event id is passed as
+    both. `CREW_CUP_MEMBER_CAP` is the per-member daily attempt cap (3).
+  - Confirmed end-to-end live 2026-11-25: discovery found 36 crew cups,
+    identified `301177866` (CREW_CUP_2) and read its crew total. The per-cup id
+    is minted at runtime by `RaceEventGroup::GenerateUniqueEventID`
+    (`int(pad(EventFile,2)+pad(A,3)+pad(IndexInSeason,2)+pad(B,3))`), but every
+    input is a serialized field of the bundle record, so reading `SeriesID`
+    directly is equivalent (documented in the module).
 
 ## 0.7.3
 

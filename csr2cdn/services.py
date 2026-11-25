@@ -796,16 +796,46 @@ class CSR2Services:
         return self.prepare_crew_event_progress(str(event_id), str(event_id),
                                                 crew_uid=crew_uid)
 
-    def get_crew_cup_progress(self, event_id, *, crew_uid: Optional[str] = None):
-        """The crew's collective progress on the Crew Cup with ``event_id``.
+    def discover_crew_cups(self):
+        """Every Crew/Token Cup in the current season's modular event bundle.
 
-        ``event_id`` is supplied (e.g. from the event screen or an account's
-        ``evca`` key); the Crew Cup is not published in any downloadable
-        metadata, so it cannot be discovered here. Returns a
+        Fetches and decodes the modular event metadata from the asset CDN (the
+        crew cups are not in the metadata-service JSON blocks), returning a
+        tuple of :class:`csr2cdn.crew_cup.CrewCup` ordered by start time.
+        Requires ``allow_network`` and the ``events`` extra (for bundle
+        decoding).
+        """
+        if not self.allow_network:
+            raise ServiceNetworkDisabled("Crew Cup discovery requires allow_network=True")
+        from csr2cdn.cdn import CDN
+        from csr2cdn.service_modular_assets import load_modular_event_metadata
+        from .crew_cup import crew_cups_from_metadata
+        with CDN(zid=self.player_id, release_version=self.app_version, probe=False) as cdn:
+            meta = load_modular_event_metadata(cdn)
+        return crew_cups_from_metadata(meta)
+
+    def active_crew_cup(self, *, now: Optional[int] = None, kind: str = "crew"):
+        """The Crew Cup (``kind='crew'``) or Token Cup active now, or ``None``."""
+        from .crew_cup import active_crew_cup
+        return active_crew_cup(self.discover_crew_cups(), now=now, kind=kind)
+
+    def get_crew_cup_progress(self, event_id=None, *, crew_uid: Optional[str] = None,
+                              now: Optional[int] = None, kind: str = "crew"):
+        """The crew's collective progress on a Crew Cup.
+
+        With ``event_id`` given (e.g. from the event screen or an account's
+        ``evca`` key), reads that cup directly. With ``event_id`` omitted,
+        discovers the cup active now from the season's modular event bundle (see
+        :meth:`discover_crew_cups`) and reads it. Returns a
         :class:`csr2cdn.crew_cup.CrewCupProgress`.
         """
         from .crew_cup import CrewCup, CrewCupProgress
-        cup = CrewCup(event_id=int(event_id))
+        if event_id is None:
+            cup = self.active_crew_cup(now=now, kind=kind)
+            if cup is None:
+                raise EventResolutionError("no Crew Cup is active in the current event bundle")
+        else:
+            cup = CrewCup(event_id=int(event_id))
         cep = self.decode_crew_event_progress(self._read(
             self.prepare_crew_cup_progress(cup.event_id, crew_uid=crew_uid)))
         return CrewCupProgress.from_crew_event_progress(cup, cep)
