@@ -4,6 +4,21 @@
 
 The Weekly Elite Cup (`ET_WEEKLY_CREW_TRIAL`), read-only.
 
+### Changed
+
+- **Hub CDN moved to `https://v2cdn.csr2hub.space`.** `DEFAULT_HUB_BASE_URL`
+  now points at the new host; the old `cdn.csr2hub.space` is no longer used.
+  The folder layout and `HubCDN` API are unchanged and verified live against the
+  new host (`database_version` → 35391, `get_database` → 24181 assets, snapshot
+  and CVD downloads succeed). Discovery of the new host (autoindex is disabled,
+  so paths were probed directly): it serves `AssetDatabases`, `CVD`,
+  `Snapshots`, `SnapshotsFull`, `SnapshotsGacha`, `SnapshotsRC` and `Gacha`; the
+  text/metadata categories (`TextData`, `Localisation`, `Icons`, `Libraries`,
+  `Linker`, `Addressables`, `DynamicEvents`, `ScreenLoading`, `ProfileStyles`)
+  and the `version-control.json` / `release-history.json` pointers are not
+  hosted there yet, so `version_info()` / `release_history()` and those category
+  reads return 404 until the host adds them.
+
 ### New
 
 - **`weekly_elite_cup` module.** The cup is a weekly-repeating crew `SeriesEvent`

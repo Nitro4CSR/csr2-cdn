@@ -90,7 +90,7 @@ the killswitch, manifest and duplicate-looking configuration variants relate.
 ## CSR2 HUB CDN
 
 Added in 0.5.0. `CDN` continues to use the game service. `HubCDN` connects to
-`https://cdn.csr2hub.space`, using the folder layout of the
+`https://v2cdn.csr2hub.space`, using the folder layout of the
 [archived CSR2-HUB repository](https://github.com/Nitro4CSR/CSR2-HUB).
 HUB requests do not need a player id, store lookup, game branch, or GitHub API.
 The archive is a layout reference, not a current catalogue: live files may have
@@ -215,11 +215,19 @@ csr2cdn hub download Libraries/_data.zip CVD/Abarth_500_2014 -o ./hub
 csr2cdn hub sync TextData/CarData.json DynamicEvents/data.json -o ./hub
 csr2cdn hub database -o hub-db.json
 csr2cdn hub database --database-version 29385 -o old-hub-db.json
-csr2cdn hub snapshot Abarth_500_2014 --kind SnapshotsGacha --index 10 -o ./hub
+csr2cdn hub snapshot ATSAutomobili_GTRewardRecycled_2018 --kind SnapshotsGacha --index 0 -o ./hub
 csr2cdn hub snapshot AstonMartin_DB5Classic_1964 --kind SnapshotsRC --index 00 -o ./hub
-csr2cdn hub images Icons/BC/Mercedes_icon -o ./images
-csr2cdn --timeout 60 hub --hub-base-url https://cdn.csr2hub.space get version-control.json --json
+csr2cdn hub images Snapshots/AMC/AMC_RingbrothersJavelinDefiant_1972.png -o ./images
+csr2cdn --timeout 60 hub get AssetDatabases/35391 --json
 ```
+
+The `v2cdn.csr2hub.space` host currently serves the asset database and the
+car-image categories — `AssetDatabases`, `CVD`, `Snapshots`, `SnapshotsFull`,
+`SnapshotsGacha`, `SnapshotsRC` and `Gacha`. The text/metadata categories
+(`TextData`, `Localisation`, `Icons`, `Libraries`, `Linker`, `Addressables`,
+`DynamicEvents`, `ScreenLoading`, `ProfileStyles`) and the
+`version-control.json` / `release-history.json` pointers are not currently
+hosted there, so those requests return 404.
 
 HUB uses `hub --hub-base-url`; the global `--base-url` is for the game CDN.
 Game discovery, platform, quality and metadata flags do not apply to HUB.

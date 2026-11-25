@@ -22,7 +22,7 @@ from csr2cdn import _http
 from csr2cdn.database import AssetDatabase
 from csr2cdn.errors import Csr2CdnError
 
-DEFAULT_HUB_BASE_URL = "https://cdn.csr2hub.space"
+DEFAULT_HUB_BASE_URL = "https://v2cdn.csr2hub.space"
 HUB_CATEGORIES = (
     "Addressables", "AssetDatabases", "CVD", "DynamicEvents", "Gacha",
     "Icons", "Libraries", "Linker", "Localisation", "ProfileStyles",
