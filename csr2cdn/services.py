@@ -796,46 +796,61 @@ class CSR2Services:
         return self.prepare_crew_event_progress(str(event_id), str(event_id),
                                                 crew_uid=crew_uid)
 
-    def discover_crew_cups(self):
-        """Every Crew/Token Cup in the current season's modular event bundle.
+    def discover_season_cups(self, *, kinds=None):
+        """Every recurring cup in the current season's modular event bundle.
 
         Fetches and decodes the modular event metadata from the asset CDN (the
-        crew cups are not in the metadata-service JSON blocks), returning a
-        tuple of :class:`csr2cdn.crew_cup.CrewCup` ordered by start time.
-        Requires ``allow_network`` and the ``events`` extra (for bundle
-        decoding).
+        cups are not in the metadata-service JSON blocks), returning a tuple of
+        :class:`csr2cdn.season_cups.SeasonCup` ordered by start time -- crew,
+        token, supply and prize cups. ``kinds`` optionally restricts the result
+        (e.g. ``("crew", "token")``). Requires ``allow_network`` and the
+        ``events`` extra (for bundle decoding).
         """
         if not self.allow_network:
-            raise ServiceNetworkDisabled("Crew Cup discovery requires allow_network=True")
+            raise ServiceNetworkDisabled("cup discovery requires allow_network=True")
         from csr2cdn.cdn import CDN
         from csr2cdn.service_modular_assets import load_modular_event_metadata
-        from .crew_cup import crew_cups_from_metadata
+        from .season_cups import season_cups_from_metadata
         with CDN(zid=self.player_id, release_version=self.app_version, probe=False) as cdn:
             meta = load_modular_event_metadata(cdn)
-        return crew_cups_from_metadata(meta)
+        return season_cups_from_metadata(meta, kinds=kinds)
+
+    def active_cup(self, *, now: Optional[int] = None, kind: Optional[str] = None):
+        """The recurring cup active now (optionally of a given ``kind``)."""
+        from .season_cups import active_cup
+        return active_cup(self.discover_season_cups(), now=now, kind=kind)
+
+    def discover_crew_cups(self):
+        """The crew-collective cups (crew + token) in the current season bundle."""
+        from .season_cups import CREW_COLLECTIVE_KINDS
+        return self.discover_season_cups(kinds=CREW_COLLECTIVE_KINDS)
 
     def active_crew_cup(self, *, now: Optional[int] = None, kind: str = "crew"):
         """The Crew Cup (``kind='crew'``) or Token Cup active now, or ``None``."""
-        from .crew_cup import active_crew_cup
-        return active_crew_cup(self.discover_crew_cups(), now=now, kind=kind)
+        from .season_cups import active_cup
+        return active_cup(self.discover_crew_cups(), now=now, kind=kind)
 
     def get_crew_cup_progress(self, event_id=None, *, crew_uid: Optional[str] = None,
                               now: Optional[int] = None, kind: str = "crew"):
-        """The crew's collective progress on a Crew Cup.
+        """The crew's collective progress on a crew-collective cup.
 
         With ``event_id`` given (e.g. from the event screen or an account's
         ``evca`` key), reads that cup directly. With ``event_id`` omitted,
-        discovers the cup active now from the season's modular event bundle (see
-        :meth:`discover_crew_cups`) and reads it. Returns a
-        :class:`csr2cdn.crew_cup.CrewCupProgress`.
+        discovers the ``kind`` (``"crew"`` or ``"token"``) cup active now from
+        the season's modular event bundle and reads it. Returns a
+        :class:`csr2cdn.crew_cup.CrewCupProgress`. Only crew-collective cups
+        have this read; supply/prize cups are individual (discover them with
+        :meth:`discover_season_cups`).
         """
-        from .crew_cup import CrewCup, CrewCupProgress
+        from .season_cups import SeasonCup
+        from .crew_cup import CrewCupProgress
         if event_id is None:
             cup = self.active_crew_cup(now=now, kind=kind)
             if cup is None:
-                raise EventResolutionError("no Crew Cup is active in the current event bundle")
+                raise EventResolutionError(
+                    "no %s cup is active in the current event bundle" % kind)
         else:
-            cup = CrewCup(event_id=int(event_id))
+            cup = SeasonCup(kind=kind, event_id=int(event_id), is_crew_event=True)
         cep = self.decode_crew_event_progress(self._read(
             self.prepare_crew_cup_progress(cup.event_id, crew_uid=crew_uid)))
         return CrewCupProgress.from_crew_event_progress(cup, cep)

@@ -102,6 +102,10 @@ from csr2cdn.weekly_elite_cup import (
     SERIES_ID as WEC_SERIES_ID, CREW_MEMBER_CONTRIBUTION as WEC_MEMBER_CAP,
     GOAL_RACES as WEC_GOAL_RACES,
 )
+from csr2cdn.season_cups import (
+    SeasonCup, season_cups_from_metadata, active_cup as season_cup_active,
+    CUP_KINDS, CREW_COLLECTIVE_KINDS,
+)
 from csr2cdn.crew_cup import (
     CrewCup, CrewCupProgress, crew_cups_from_metadata,
     active_crew_cup as crew_cup_active,
@@ -256,6 +260,10 @@ __all__ = [
     "WeeklyEliteCupProgress",
     "WeeklyEliteCupParticipation",
     "WeeklyEliteCupMemberActivity",
+    "SeasonCup",
+    "season_cups_from_metadata",
+    "season_cup_active",
+    "CUP_KINDS",
     "CrewCup",
     "CrewCupProgress",
     "crew_cups_from_metadata",

@@ -50,6 +50,18 @@ The Weekly Elite Cup (`ET_WEEKLY_CREW_TRIAL`), read-only.
     (`int(pad(EventFile,2)+pad(A,3)+pad(IndexInSeason,2)+pad(B,3))`), but every
     input is a serialized field of the bundle record, so reading `SeriesID`
     directly is equivalent (documented in the module).
+- **Season-cup discovery (`season_cups`).** One discovery layer for all four
+  recurring cup families in the season bundle: `discover_season_cups()` returns
+  `SeasonCup` records (kind `crew`/`token`/`supply`/`prize`, event id, window,
+  car tier, member cap, and `restriction` / `requires_prestige_car` read from
+  the `MetricID`), and `active_cup(kind=...)` picks the one live now. Crew and
+  token cups are crew-collective (progress via `crew_cup` above; Token Cup
+  confirmed live 2026-11-25: event `301177867` → progress 51, participated
+  true). Supply and prize cups are **individual** — discoverable (schedule +
+  restriction) but with no collective progress read: live probes of the active
+  supply cup returned 0 on `crewEventProgress`, 403 on leaderboard routes and
+  500 on event-progress routes, so each player's progress lives only in their
+  own profile. `crew_cup`'s discovery helpers now delegate here (one parser).
 
 ## 0.7.3
 

@@ -40,7 +40,7 @@ _META = {"RaceSeries": [
 
 
 def test_defaults_and_member_cap():
-    cup = CrewCup(event_id=301177866)
+    cup = CrewCup(kind="crew", event_id=301177866, member_cap=CREW_MEMBER_CONTRIBUTION)
     assert cup.event_id == 301177866
     assert cup.member_cap == CREW_MEMBER_CONTRIBUTION == 3
 
@@ -78,7 +78,7 @@ def test_active_filters_by_kind():
 
 
 def test_progress_wrapper_from_live_shape():
-    cup = CrewCup(event_id=301177866)
+    cup = CrewCup(kind="crew", event_id=301177866)
     cep = CrewEventProgress.from_response(
         {"progress": 88, "participated": True, "isValid": None, "error_code": 0})
     p = CrewCupProgress.from_crew_event_progress(cup, cep)
